@@ -222,7 +222,7 @@ sub parse_redhat_errata($$) {
 	$xml->{$advid}->{'notes'}=$rhn_errata_details->{'errata_notes'};
 	$xml->{$advid}->{'solution'}="not available";
 	#$xml->{$advid}->{'os_release'}=$os_release;
-	$xml->{$advid}->{'references'}=$errata->{'errata_references'};
+	$xml->{$advid}->{'references'}=$rhn_errata_details->{'errata_references'};
 	$xml->{$advid}->{${opt_architecture}.'_packages'}=\@rhn_errata_packages;
   }
   &set_proxy($opt_proxy);
