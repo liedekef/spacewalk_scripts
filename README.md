@@ -1,4 +1,4 @@
-based on some existing scripts (eva_direct_sync.pl and errata-import.pl), I've
+Based on some existing scripts (eva_direct_sync.pl and errata-import.pl), I've
 created a new script. Reason for the rework:
 - we have redhat and centos packages in spacewalk, both can have the same
   package names, which would result in redhat packages being pushed in centos
@@ -11,6 +11,7 @@ created a new script. Reason for the rework:
 - always different scripts were created/used for redhat and centos errata
 
 So, my script (well, combo of shell and perl) was born:
+
 For CentOS:
 - first some shell calls to get the latest announces from the centos archive
   (but not by scraping the announces list, but getting digests, much less
@@ -26,6 +27,7 @@ For CentOS:
   OS versions and architectures (and creating the errata for more than one
   base channel would result in packages being copied which is a mess again).
   Also a proxy can be defined for spacewalk and or RHN servers
+
 Or, for RedHat:
 - log in to RHN, get the errata for the specified channel
   (possibility to define the date range)
