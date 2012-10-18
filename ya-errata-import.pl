@@ -357,7 +357,8 @@ sub rhn_get_packages($$$) {
     foreach my $pkg (@$packages) {
 		my $found=0;
 		foreach my $providing_channel (@{$pkg->{'providing_channels'}}) {
-			if ($providing_channel eq $opt_channel) {
+         if ((!$opt_redhat && $providing_channel eq $opt_channel) ||
+             ($opt_redhat && $providing_channel eq $opt_redhat_channel)) {
 				$found=1;
 			}
 		}
@@ -500,7 +501,7 @@ if (defined($opt_architecture) && $opt_architecture ne "i386" && $opt_architectu
   &error("Architecture is not correctly set, please use 'i386' or 'x86_64' for values!\n");
   exit 1;
 } elsif (!defined($opt_architecture)) {
-  &info("Architecture is not specified, will try to determine it based on the channel name\n");
+  &info("Architecture is not specified, will try to determine it based on the channel properties of '$opt_channel'\n");
 }
 
 if ($opt_redhat && !defined($opt_redhat_channel)) {
@@ -799,7 +800,7 @@ foreach my $advid (sort(keys(%{$xml}))) {
 	if (defined($xml->{$advid}->{'os_release'}) && ($xml->{$advid}->{'os_release'} != $opt_os_version)) {
 	   &info("   this is probably ok, since I think the OS version doesn't match what you wanted\n");
 	} else {
-	   &info("   this should be fixed by the next channel sync\n");
+	   &info("   this should be fixed by the next channel sync, or the errata is already superseded by another one\n");
 	}
 	next;
     }
