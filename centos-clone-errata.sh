@@ -11,7 +11,7 @@ rm -f /tmp/centos-errata/* >/dev/null 2>&1
 # wget needs a proxy? Then set these
 export http_proxy=
 export https_proxy=
-wget -q -O- http://lists.centos.org/pipermail/centos/$DATE/date.html| grep "CentOS-announce Digest" |tail -n 5 |cut -d"\"" -f2|xargs -n1 -I{} wget -q http://lists.centos.org/pipermail/centos/$DATE/{}
+wget --no-cache -q -O- http://lists.centos.org/pipermail/centos/$DATE/date.html| grep "CentOS-announce Digest" |tail -n 5 |cut -d"\"" -f2|xargs -n1 -I{} wget -q http://lists.centos.org/pipermail/centos/$DATE/{}
 
 # get usernames and passwords
 . ./ya-errata-import.cfg
