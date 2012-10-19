@@ -1,14 +1,17 @@
-Based on some existing scripts (eva_direct_sync.pl and errata-import.pl), I've
-created a new script. Reason for the rework:
+ya-errata-import is a new script to import CentOS or RedHat errata into
+spacewalk. I created this to solve most of my frustrations with
+existing errata import scripts:
 - we have redhat and centos packages in spacewalk, both can have the same
   package names, which would result in redhat packages being pushed in centos
   channels because of the errata create (and thus everything fails)
+  Almost every python script has this problem (and some perl scripts too)
 - the XML file of errata-import.pl is ok, but updated by one person and only
   for security errata (I think)
 - errata-import.pl had good code, but no RHN integration, and is too easy
   for missing packages (if 1 package from the errata is there, the errata is
   created, while other packages might be missing)
 - always different scripts were created/used for redhat and centos errata
+- most perl scripts lacked proxy support
 
 So, my script (well, combo of shell and perl) was born:
 
