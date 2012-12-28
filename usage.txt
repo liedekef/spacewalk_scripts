@@ -1,0 +1,4 @@
+The base script is ya-errata-import.pl, doing "ya-errata-import.pl --help" will show all available options.
+See centos-clone-errata.sh and redhat-clone-errata.sh for live usage examples.
+Change ya-errata-import.cfg to match your environment.
+
