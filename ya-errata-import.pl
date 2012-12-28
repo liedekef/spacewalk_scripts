@@ -27,8 +27,6 @@ use Data::Dumper;
 use Getopt::Long;
 import Text::Unidecode;
 
-# A slightly modified Frontier::Client should come with this script
-#require 'Frontier-Client.pm';
 use Frontier::Client;
 
 #######################################################################
@@ -66,7 +64,6 @@ my ($channeldetails, $lastmodified, $trackmodified, $lastsync, $synctimestamp);
 my ($reference, %erratadetails, %erratainfo);
 my $result;
 my $undopush;
-my %id2channel;
 my ($pkg, $allpkg, $pkgdetails, $package);
 my ($advisory, $ovalid);
 my $getdetails;
@@ -142,6 +139,7 @@ sub usage() {
   print "\n";
   print "REQUIRED for CentOS errata:\n";
   print "  --erratadir\t\tThe dir containing CentOS errata announcement digest archives\n";
+  print "             \t\tSee the accompanying file centos-clone-errata.sh for an example on how to use this\n";
   print "\n";
   print "OPTIONAL:\n";
   print "  --quiet\t\tSuppresses all informational messages\n";
@@ -670,8 +668,8 @@ if (!$found) {
   # Go through each package
   foreach $pkg (@$allpkg) {
 
-    # Get the details of the current package, for the name
-    # Edit: commented this, it takes way too long, we'll reconstruct the package name ourselves
+    # Get the details of the current package, for the filename (the filename is referenced in the erratum)
+    # Edit: commented this, it takes way too long, we'll reconstruct the package filename ourselves
     # $pkgdetails = $client->call('packages.get_details', $session, $pkg->{id});
     my $name=$pkg->{"name"};
     my $version=$pkg->{"version"};
@@ -690,8 +688,6 @@ if (!$found) {
 
     &debug("Package ID $pkg->{'id'} is $filename\n");
     $name2id{$filename} = $pkg->{'id'};
-    #$name2channel{$filename} = $opt_channel;
-    push(@{$id2channel{$pkg->{'id'}}}, $opt_channel); 
   }
 }
 
@@ -783,15 +779,16 @@ foreach my $advid (sort(keys(%{$xml}))) {
         #&debug("Package: $package -> $name2id{$package} -> $name2channel{$package} \n");
         &debug("Package: $package -> $name2id{$package}\n");
         push(@packages, $name2id{$package});
-#        push(@channels, $name2channel{$package});
-        # Ugly hack :)
-	@packages = &uniq(@packages);
-#        @channels = &uniq(@channels);
       } else {
         # No such package, too bad
         &debug("Package: $package not found\n");
 	$all_found=0;
       }
+    }
+
+    # Just in case ...
+    if ($all_found) {
+        @packages = &uniq(@packages);
     }
 
     # skip errata if not all packages are present
@@ -872,7 +869,7 @@ foreach my $advid (sort(keys(%{$xml}))) {
     }
 
     if (@packages >= 1) {
-      # If there is at least one matching package create the errata?
+      # If there is at least one matching package in the errata
       &info("Creating errata $adv_name for $advid ($xml->{$advid}->{'synopsis'}) (All ".($#packages +1)." packages present in the corresponding channel)\n");
       if ($opt_publish) {
         eval {$result = $client->call('errata.create', $session, \%erratainfo, \@bugs, \@keywords, \@packages, $client->boolean(1), [ $opt_channel ]);}
@@ -895,44 +892,6 @@ foreach my $advid (sort(keys(%{$xml}))) {
             eval{$result = $client->call('errata.set_details', $session, $adv_name, \%erratadetails);}
       }
 
-      # Do extra stuff if --publish is set
-      if ($opt_publish) {
-          # Reverse copying of packages by publish (dangerous!!!)
-          #if (not($opt_autopush)) {
-          if (0) {
-            foreach $pkg (@packages) {
-              # Log previous and current channel membership
-              my @autopushed = ();
-              my @inchannel = ();
-              &debug("Previous channel membership for $pkg: ".join(',',@{$id2channel{$pkg}})."\n");
-              $channellist = $client->call('packages.list_providing_channels', $session, $pkg);
-              foreach $channel (@$channellist) {
-                 push(@inchannel, $channel->{label});
-              }
-              &debug("Current channel membership for $pkg: ".join(',',@inchannel)."\n");
-
-              # Check if package was in channel before publishing errata
-              foreach $channel (@$channellist) {
-		foreach (@{$id2channel{$pkg}}) {
-                  # It wasn't. Note to @autopushed for removal
-                  if (not(/^$channel->{label}$/)) { push(@autopushed, $channel->{label}); }
-                }
-
-                # I know, ugly hack, again :)
-                @autopushed = &uniq(@autopushed);
-
-                # Remove packages from channel(s) it didn't belong to earlier
-                if (@autopushed >= 1) {
-                  &debug("Package $pkg has been auto-pushed to ".join(',',@autopushed)."\n");
-                  foreach $undopush (@autopushed) {
-                    &debug("Removing package $pkg from $undopush\n");
-                    $result = $client->call('channel.software.remove_packages', $session, $undopush, $pkg);
-                  }
-                } 
-              }
-            }
-          }
-      }
     } else {
       # There is no related package so there is no errata created
       &info("Skipping errata $advid ($xml->{$advid}->{'synopsis'}) -- No packages found\n");
