@@ -96,6 +96,10 @@ my $opt_redhat_startfromprevious;
 my $opt_redhat_startdate;
 my $opt_redhat_enddate;
 my $opt_redhat_channel;
+my $opt_spacewalk_user;
+my $opt_spacewalk_pwd;
+my $opt_rhn_user;
+my $opt_rhn_pwd;
 
 #######################################################################
 ### PROCEDURES
@@ -119,9 +123,11 @@ sub error() {
 
 sub usage() {
   print "Script to clone errata for CentOS or RedHat into Spacewalk\n";
-  print "\nUsernames and passwords are taken from the environment\n";
+  print "\nUsernames and passwords are best taken from the environment\n";
   print "variables SPACEWALK_USER, SPACEWALK_PASS, RHN_USER, RHN_PASS\n";
-  print "or asked for if not given but needed.\n\n";
+  print "You can also provide them using the available options (see below),\n";
+  print "if you do so, the commandline options take precedence over the ENV variables\n";
+  print "Otherwise you'll be asked for it if not given but needed.\n\n";
   print "Usage: $0 --server <SERVER> --erratadir <ERRATA-DIR> \n";
   print "         --channel=<CHANNEL> --os-version <VERSION>\n";
   print "       [ --rhsa-oval <REDHAT-OVAL-XML> | --debug |\n";
@@ -130,6 +136,8 @@ sub usage() {
 #  print "         --autopush ]\n";
   print "         --publish | --quiet | --get-from-rhn | -- architecture <ARCH> |\n";
   print "         --rhn-proxy <PROXY> | --rhn-server <RHNSERVER> |\n";
+  print "         --spacewalk-user <USER> | --spacewalk-pass <PWD> |\n";
+  print "         --rhn-user <RHNUSER> | --rhn-pass <RHNPWD> |\n";
   print "         --proxy <PROXY> | --bugzilla-url <URL> ]\n";
   print "\n";
   print "REQUIRED:\n";
@@ -155,6 +163,10 @@ sub usage() {
   print "  --rhn-server\t\tRHN server (defaults to $opt_rhn_server)\n";
   print "  --proxy\t\tProxy to connect to spacewalk server\n";
   print "  --bugzilla-url\tPrefix for errata bugfix url, defaults to '$opt_bugzilla_url'\n";
+  print "  --spacewalk-user\tthe username to connect to spacewalk (see also comments at the top)\n";
+  print "  --spacewalk-pass\tthe password to connect to spacewalk (see also comments at the top)\n";
+  print "  --rhn-user\t\tthe username to connect to RHN (see also comments at the top)\n";
+  print "  --rhn-pass\t\tthe password to connect to RHN (see also comments at the top)\n";
   print "\n";
   print "OPTIONAL for CentOS errata:\n";
   print "  --rhsa-oval\t\tOVAL XML file from Red Hat\n";
@@ -465,7 +477,11 @@ my $getopt = GetOptions( 'server=s'		=> \$opt_server,
                       'redhat-enddate=s'	=> \$opt_redhat_enddate,
                       'redhat-channel=s'	=> \$opt_redhat_channel,
                       'redhat-startfromprevious=s'=> \$opt_redhat_startfromprevious,
-                      'quiet'			=> \$opt_quiet
+                      'quiet'			=> \$opt_quiet,
+                      'spacewalk-user=s'	=> \$opt_spacewalk_user,
+                      'spacewalk-pass=s'	=> \$opt_spacewalk_pwd,
+                      'rhn-user=s'		=> \$opt_rhn_user,
+                      'rhn-pass=s'		=> \$opt_rhn_pwd
                      );
 
 # Check for arguments
@@ -552,21 +568,27 @@ if (not($apisupport)) {
 ###########################
 # Authenticate to the API #
 ###########################
-if (not(defined($ENV{'SPACEWALK_USER'}))) {
+if (defined($opt_spacewalk_user)) {
+   $username = $opt_spacewalk_user;
+} elsif (defined($ENV{'SPACEWALK_USER'})) {
+   $username = $ENV{'SPACEWALK_USER'};
+} else {
    print "Please enter username: ";
    chop($username=<STDIN>);
-} else {
-	$username = $ENV{'SPACEWALK_USER'};
 }
-if (not(defined($ENV{'SPACEWALK_PASS'}))) {
+
+if (defined($opt_spacewalk_pwd)) {
+   $password = $opt_spacewalk_pwd;
+} elsif (defined($ENV{'SPACEWALK_PASS'})) {
+   $password = $ENV{'SPACEWALK_PASS'};
+} else {
    print "Please enter password: ";
    system('stty','-echo');
    chop($password=<STDIN>);
    system('stty','echo');
    print "\n";
-} else {
-	$password = $ENV{'SPACEWALK_PASS'};
 }
+
 $session = $client->call('auth.login', $username, $password);
 if ($session =~ /^\w+$/) {
   &info("Authentication successful\n");
@@ -578,20 +600,25 @@ if ($session =~ /^\w+$/) {
 # For RedHat: connect to RHN
 if ($opt_get_from_rhn || $opt_redhat) {
    &set_proxy($opt_rhn_proxy);
-   if (not(defined($ENV{'RHN_USER'}))) {
+   if (defined($opt_rhn_user)) {
+      $rhn_username = $opt_rhn_user;
+   } elsif (defined($ENV{'RHN_USER'})) {
+      $rhn_username = $ENV{'RHN_USER'};
+   } else {
       print "Please enter RHN username: ";
       chop($rhn_username=<STDIN>);
-   } else {
-	$rhn_username = $ENV{'RHN_USER'};
    }
-   if (not(defined($ENV{'RHN_PASS'}))) {
+
+   if (defined($opt_rhn_pwd)) {
+      $rhn_password = $opt_rhn_pwd;
+   } elsif (defined($ENV{'RHN_PASS'})) {
+      $rhn_password = $ENV{'RHN_PASS'};
+   } else {
       print "Please enter RHN password: ";
       system('stty','-echo');
       chop($rhn_password=<STDIN>);
       system('stty','echo');
       print "\n";
-   } else {
-	$rhn_password = $ENV{'RHN_PASS'};
    }
    $rhn_client = new Frontier::Client(url => "https://$opt_rhn_server/rpc/api");
    $rhn_session = $rhn_client->call('auth.login', $rhn_username, $rhn_password);

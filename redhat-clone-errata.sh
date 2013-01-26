@@ -1,6 +1,10 @@
 #!/bin/bash
 # Processes RedHat Errata and imports it into Spacewalk
 
+# IMPORTANT: read through this script, it's more of a guidance than something fixed in stone
+# also: if you're using the commandline options for usernames and passwords, comment out the 
+# line that says ". ./ya-errata-import.cfg"
+
 # Obtains the current date and year.
 DATE=`/bin/date +'%Y-%B'`
 
@@ -8,6 +12,7 @@ DATE=`/bin/date +'%Y-%B'`
 SPACEWALK=127.0.0.1
 
 # get usernames and passwords
+# don't use this if you're using the commandline options for usernames and passwords
 . ./ya-errata-import.cfg
 
 # now do the import
