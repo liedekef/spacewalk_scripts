@@ -15,18 +15,15 @@
 #            redhat/centos issues and cross-basechannel copies of packages
 #          - add support for redhat errata and servers
 #          - time ranges
-
-
-# Test for required modules
-&eval_modules;
+# 20130125 - added commandline options for usernames and pwds
 
 # Load modules
 use strict;
 use warnings;
+
 use Data::Dumper;
 use Getopt::Long;
-import Text::Unidecode;
-
+use Text::Unidecode;
 use Frontier::Client;
 
 #######################################################################
@@ -34,7 +31,7 @@ use Frontier::Client;
 #######################################################################
 
 # Version information
-my $version = "201201010";
+my $version = "20130128";
 my @supportedapi = ( '10.9','10.11','11.00','11.1' );
 
 # Spacewalk Version => API cheatsheet
@@ -182,11 +179,6 @@ sub usage() {
   print "DEBUGGING:\n";
   print "  --debug\t\tSet verbosity to debug (use this when reporting issues!)\n";
   print "\n";
-}
-
-sub eval_modules() {
-  eval { require Text::Unidecode; };
-  if ($@) { die "ERROR: You are missing Text::Unidecode\n       yum install perl-Text-Unidecode\n"; };
 }
 
 sub uniq() {
