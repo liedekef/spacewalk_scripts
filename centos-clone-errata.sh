@@ -34,7 +34,7 @@ rm -f $ERRATADIR/* >/dev/null 2>&1
       yearmon=`date -u -d '2 days ago' +%Y-%B`\ $yearmon
    fi
    # IF NOT EVERY DAY, use the following code as an example:
-   #if [ $day -lt 5 ]; then
+   #if [ $day -le 5 ]; then
    #   yearmon=`date -u -d '6 days ago' +%Y-%B`\ $yearmon
    #fi
 
@@ -57,7 +57,7 @@ rm -f $ERRATADIR/* >/dev/null 2>&1
 #   export RHN_USER=my_rhn_username
 #   export RHN_PASS=my_rhn_password
 # 2) Set them on the commandline (but I don't recommend it)
-# 3) Set them in a seperate cfg file and source it (like done below)
+# 3) Set them in a separate cfg file and source it (like done below)
 . ./ya-errata-import.cfg
 
 # now do the import based on the wget results
