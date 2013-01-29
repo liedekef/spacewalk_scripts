@@ -39,7 +39,7 @@ rm -f $ERRATADIR/* >/dev/null 2>&1
 	  wget --no-cache -q -O- $listurl/$d/date.html \
 		| sed -n 's|.*"\([^"]*\)".*CentOS-announce Digest.*|'"$d/\\1|p"
      done
-   } |	tail -n $NBR_DIGESTS | xargs -n1 -I{} echo wget -q $listurl/{}
+   } |	tail -n $NBR_DIGESTS | xargs -n1 -I{} wget -q $listurl/{}
 
    # the ye old simple way, left as an example for reference:
    #wget --no-cache -q -O- http://lists.centos.org/pipermail/centos/$DATE/date.html| grep "CentOS-announce Digest" |tail -n 5 |cut -d"\"" -f2|xargs -n1 -I{} wget -q http://lists.centos.org/pipermail/centos/$DATE/{}
