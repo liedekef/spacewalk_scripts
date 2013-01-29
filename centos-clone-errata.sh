@@ -2,8 +2,8 @@
 # Processes CentOS Errata and imports it into Spacewalk
 
 # IMPORTANT: read through this script, it's more of a guidance than something fixed in stone
-# also: if you're using the commandline options for usernames and passwords, comment out the 
-# line that says ". ./ya-errata-import.cfg"
+# This script is meant to be run every day from cron or so. If you don't want to do this every day,
+# you might want to change the code below marked with "EVERY DAY"
 
 # set fixed locale
 export LC_ALL=C
@@ -29,9 +29,14 @@ rm -f $ERRATADIR/* >/dev/null 2>&1
 
    eval `exec /bin/date -u +'yearmon=%Y-%B day=%d'`
    # for the first day of the month: also consider last month
+   # this only applies if the script is ran EVERY DAY
    if [ $day -eq 01 ]; then
       yearmon=`date -u -d '2 days ago' +%Y-%B`\ $yearmon
    fi
+   # IF NOT EVERY DAY, use the following code as an example:
+   #if [ $day -lt 5 ]; then
+   #   yearmon=`date -u -d '6 days ago' +%Y-%B`\ $yearmon
+   #fi
 
    # Use wget to fetch the errata data from centos.org
    listurl=http://lists.centos.org/pipermail/centos
