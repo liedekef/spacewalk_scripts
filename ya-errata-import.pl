@@ -25,13 +25,15 @@ use Data::Dumper;
 use Getopt::Long;
 use Text::Unidecode;
 use Frontier::Client;
+use XML::Simple;
+use Time::Local;
 
 #######################################################################
 ### GLOBAL VARIABLES
 #######################################################################
 
 # Version information
-my $version = "20130128";
+my $version = "20130211";
 my @supportedapi = ( '10.9','10.11','11.00','11.1' );
 
 # Spacewalk Version => API cheatsheet
@@ -52,7 +54,7 @@ $| = 1;
 my ($client,$rhn_client);
 my $apiversion;
 my $apisupport = 0;
-my ($xml, $rhsaxml);
+my ($xml, $rhsaxml, $epelxml);
 my ($session, $username, $password,$rhn_session,$rhn_username,$rhn_password);
 #my %name2channel;
 my %name2id;
@@ -89,14 +91,15 @@ my $opt_rhn_proxy="";
 my $opt_rhn_server="rhn.redhat.com";
 my $opt_bugzilla_url="https://bugzilla.redhat.com/";
 my $opt_proxy="";
-my $opt_redhat_startfromprevious;
-my $opt_redhat_startdate;
-my $opt_redhat_enddate;
+my $opt_startfromprevious;
+my $opt_startdate;
+my $opt_enddate;
 my $opt_redhat_channel;
 my $opt_spacewalk_user;
 my $opt_spacewalk_pwd;
 my $opt_rhn_user;
 my $opt_rhn_pwd;
+my $opt_epel_erratafile="";
 
 #######################################################################
 ### PROCEDURES
@@ -131,6 +134,7 @@ sub usage() {
 #  print "         --sync-channels | --sync-timeout=<TIMEOUT> |\n";
   print "         --bugfix | --security | --enhancement |\n";
 #  print "         --autopush ]\n";
+  print "         --epel_errata <PATH to updateinfo.xml> |\n";
   print "         --publish | --quiet | --get-from-rhn | -- architecture <ARCH> |\n";
   print "         --rhn-proxy <PROXY> | --rhn-server <RHNSERVER> |\n";
   print "         --spacewalk-user <USER> | --spacewalk-pass <PWD> |\n";
@@ -145,6 +149,11 @@ sub usage() {
   print "REQUIRED for CentOS errata:\n";
   print "  --erratadir\t\tThe dir containing CentOS errata announcement digest archives\n";
   print "             \t\tSee the accompanying file centos-clone-errata.sh for an example on how to use this\n";
+  print "\n";
+  print "REQUIRED for EPEL errata:\n";
+  print "  --epel_errata\t\tPath to the unzipped updateinfo.xml file\n";
+  print "\t\t\tIf using epel errata, use the --redhat option to indicate that the spacewalk channel\n";
+  print "\t\t\tyou're pushing erratas in, is a redhat based channel, this just influences the name of the errata in spacewalk\n";
   print "\n";
   print "OPTIONAL:\n";
   print "  --quiet\t\tSuppresses all informational messages\n";
@@ -170,11 +179,14 @@ sub usage() {
   print "  --get-from-rhn\tIndicate that you want to get extra info from RHN for CentOS errata\n";
   print "\n";
   print "OPTIONAL for RedHat errata:\n";
-  print "  --redhat\t\tUse RedHat for errata cloning, if not set CentOS is assumed\n";
+  print "  --redhat\t\tUse RedHat as source for errata, if not set CentOS is assumed\n";
+  print "\t\t\tSee the remark above when using the --epel_errata option\n";
   print "  --redhat-channel\tRedHat channel to get errata from, only usefull with --redhat, defaults to the same as --channel\n";
-  print "  --redhat-startdate\tThe start date for the errata\n";
-  print "  --redhat-startfromprevious\tStart from previous hour,day,week,twoweeks,month,year (these are the possible values)\n";
-  print "  --redhat-enddate\tThe end date for the errata\n";
+  print "\n";
+  print "OPTIONAL for RedHat or EPEL errata:\n";
+  print "  --startdate\tThe start date for the errata\n";
+  print "  --startfromprevious\tStart from previous hour,day,week,twoweeks,month,year (these are the possible values)\n";
+  print "  --enddate\tThe end date for the errata\n";
   print "\n";
   print "DEBUGGING:\n";
   print "  --debug\t\tSet verbosity to debug (use this when reporting issues!)\n";
@@ -187,22 +199,121 @@ sub uniq() {
   return (keys %all);
 }
 
+sub to_epoch ($) {
+	my ($year, $month, $day, $hour, $min, $sec) = split /\W+/, $_[0];
+	return timelocal($sec,$min,$hour,$day,$month-1,$year-1900);
+}
+
+sub parse_updatexml($) {
+  my $xml;
+  my $updatexml;
+  my $update_xml_file=$_[0];
+  if (!-r "$update_xml_file") {
+     die "Can't open XML Update file $update_xml_file\n";
+  }
+  &info("Loading XML Update file $update_xml_file...\n");
+  if (not($updatexml = XMLin($update_xml_file, ForceArray => [ 'reference' ]))) {
+    &error("Could not parse XML Update file!\n");
+    exit 4;
+  }
+
+  &debug("XML Update file loaded successfully\n");
+  foreach my $advid (keys %{$updatexml->{'update'}}) {
+	my $errata = $updatexml->{'update'}->{$advid};
+        my $errata_type;
+	if ($errata->{'type'} eq "bugfix") {
+		$errata_type="Bug Fix Advisory";
+	} elsif ($errata->{'type'} eq "security") {
+		$errata_type="Security Advisory";
+	} elsif ($errata->{'type'} eq "enhancement") {
+		$errata_type="Product Enhancement Advisory";
+	} else {
+		next;
+	}
+	my $errata_time = &to_epoch($errata->{'issued'}->{'date'});
+	if (defined($opt_startfromprevious)) {
+		my $startdate=&get_previous_startdate($opt_startfromprevious);
+		if ($errata_time<to_epoch($startdate)) {
+			next;
+		}
+	} elsif (defined($opt_startdate) && defined($opt_enddate)) {
+		if ($errata_time<to_epoch($opt_startdate) || $errata_time>to_epoch($opt_enddate)) {
+			next;
+		}
+	} elsif (defined($opt_startdate)) {
+		if ($errata_time<to_epoch($opt_startdate)) {
+			next;
+		}
+	}
+
+	my @packages;
+	foreach my $pkg (keys %{$errata->{'pkglist'}->{'collection'}->{'package'}}) {
+		my $pkg_info = $errata->{'pkglist'}->{'collection'}->{'package'}->{$pkg};
+		if ($pkg_info->{'arch'} ne 'src' && $pkg_info->{'filename'} !~ /src\.rpm$|debuginfo/) {
+			my $pkg_filename = $pkg_info->{'filename'};
+			push (@packages,$pkg_filename);
+			&debug("Errata $advid has package $pkg_filename\n");
+		}
+	}
+        if (!@packages) {
+		&debug("Skipping $advid, no packages for the corresponding arch\n");
+		next;
+	}
+
+ 	$xml->{$advid}={};
+	$xml->{$advid}->{'type'}=$errata_type;
+	$xml->{$advid}->{${opt_architecture}.'_packages'}=\@packages;
+	$xml->{$advid}->{'synopsis'}=$errata->{'title'};
+	$xml->{$advid}->{'release'}=$errata->{'version'};
+	$xml->{$advid}->{'advisory_name'}=$advid;
+	$xml->{$advid}->{'product'}=$errata->{'release'};
+	$xml->{$advid}->{'topic'}=$errata->{'description'};
+	$xml->{$advid}->{'description'}=$errata->{'description'};
+	$xml->{$advid}->{'solution'}="not available";
+	$xml->{$advid}->{'notes'}="not available";
+	$xml->{$advid}->{'references'}='';
+
+	my $bugs_found=0;
+	my @bugs;
+        if (defined($errata->{'references'}->{'reference'})) {
+		foreach my $ref_name (keys %{$errata->{'references'}->{'reference'}}) {
+			my $reference = $errata->{'references'}->{'reference'}->{$ref_name};
+			if ($reference->{'type'} eq 'bugzilla') {
+				my $bug;
+				$bug->{'id'}=$ref_name;
+				$bug->{'summary'}=$reference->{'title'};
+				$bug->{'url'}=$reference->{'href'};
+				$bugs_found=1;
+				push(@bugs,$bug);
+			} else {
+		   		$xml->{$advid}->{'references'}.=$reference->{'href'}."\n";
+			}
+		}
+	}
+	if ($bugs_found) {
+		$xml->{$advid}->{'bugs'}=\@bugs;
+	}
+        chomp($xml->{$advid}->{'references'});
+  }
+  return $xml;
+}
+
 sub parse_redhat_errata($$) {
   my ($client,$sessionid)=@_;
   my $xml;
   my $rhn_erratas;
 
   &set_proxy($opt_rhn_proxy);
-  if (defined($opt_redhat_startfromprevious)) {
-     my $startdate=&get_previous_startdate($opt_redhat_startfromprevious);
+  if (defined($opt_startfromprevious)) {
+     my $startdate=&get_previous_startdate($opt_startfromprevious);
      &info("Getting erratas from date $startdate till now\n");
      $rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel,$startdate);
-  } elsif (defined($opt_redhat_startdate) && defined($opt_redhat_enddate)) {
-     &info("Getting erratas from date $opt_redhat_startdate till $opt_redhat_enddate\n");
-     $rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel,$opt_redhat_startdate,$opt_redhat_enddate);
-  } elsif (defined($opt_redhat_startdate)) {
-     &info("Getting erratas from date $opt_redhat_startdate till now\n");
-     $rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel,$opt_redhat_startdate);
+  } elsif (defined($opt_startdate) && defined($opt_enddate)) {
+     &info("Getting erratas from date $opt_startdate till $opt_enddate\n");
+     $rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel,$opt_startdate,$opt_enddate);
+  } elsif (defined($opt_startdate)) {
+     &info("Getting erratas from date $opt_startdate till now\n");
+     $rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel,$opt_startdate);
   } else {
      &info("Getting ALL erratas (this make take a while)\n");
      $rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel);
@@ -357,15 +468,15 @@ sub rhn_get_packages($$$) {
     my $packages=$client->call('errata.listPackages',$sessionid,$advisory_name);
     my @packages;
     foreach my $pkg (@$packages) {
-		my $found=0;
-		foreach my $providing_channel (@{$pkg->{'providing_channels'}}) {
-         if ((!$opt_redhat && $providing_channel eq $opt_channel) ||
+	my $found=0;
+	foreach my $providing_channel (@{$pkg->{'providing_channels'}}) {
+          if ((!$opt_redhat && $providing_channel eq $opt_channel) ||
              ($opt_redhat && $providing_channel eq $opt_redhat_channel)) {
-				$found=1;
-			}
-		}
-		(!$found) && (next);
-		push(@packages,$pkg->{'package_file'});
+		$found=1;
+	  }
+	}
+	(!$found) && (next);
+	push(@packages,$pkg->{'package_file'});
     }
     return @packages;
 }
@@ -447,6 +558,7 @@ if (join(' ',@ARGV) =~ /--debug/) { print STDERR "DEBUG: Called as $0 ".join(' '
 my $getopt = GetOptions( 'server=s'		=> \$opt_server,
                       'erratadir=s'		=> \$opt_erratadir,
                       'rhsa-oval=s'		=> \$opt_rhsaovalfile,
+                      'epel_errata=s'		=> \$opt_epel_erratafile,
                       'debug'			=> \$opt_debug,
                       'publish'			=> \$opt_publish,
 		      'security'		=> \$opt_security,
@@ -465,10 +577,10 @@ my $getopt = GetOptions( 'server=s'		=> \$opt_server,
 		      'proxy=s'			=> \$opt_proxy,
                       'autopush'		=> \$opt_autopush,
                       'redhat'			=> \$opt_redhat,
-                      'redhat-startdate=s'	=> \$opt_redhat_startdate,
-                      'redhat-enddate=s'	=> \$opt_redhat_enddate,
+                      'startdate=s'		=> \$opt_startdate,
+                      'enddate=s'		=> \$opt_enddate,
                       'redhat-channel=s'	=> \$opt_redhat_channel,
-                      'redhat-startfromprevious=s'=> \$opt_redhat_startfromprevious,
+                      'startfromprevious=s'	=> \$opt_startfromprevious,
                       'quiet'			=> \$opt_quiet,
                       'spacewalk-user=s'	=> \$opt_spacewalk_user,
                       'spacewalk-pass=s'	=> \$opt_spacewalk_pwd,
@@ -487,7 +599,8 @@ if ( not(defined($opt_server)) || not(defined($opt_channel)) ) {
   exit 1;
 }
 
-if ( not(defined($opt_erratadir)) && !$opt_redhat ) {
+#if ( not(defined($opt_erratadir)) && !$opt_redhat ) {
+if ( !$opt_redhat && !defined($opt_erratadir) && !defined($opt_epel_erratafile)) {
   &usage;
   exit 1;
 }
@@ -510,7 +623,7 @@ if (defined($opt_architecture) && $opt_architecture ne "i386" && $opt_architectu
   &info("Architecture is not specified, will try to determine it based on the channel properties of '$opt_channel'\n");
 }
 
-if ($opt_redhat && !defined($opt_redhat_channel)) {
+if ($opt_redhat && !defined($opt_redhat_channel) && !defined($opt_epel_erratafile)) {
   &info("\nno redhat channel specified, assuming the name '$opt_channel'\n\n");
   $opt_redhat_channel=$opt_channel;
 }
@@ -518,8 +631,10 @@ if ($opt_redhat && !defined($opt_redhat_channel)) {
 # Set the OS variant
 if ($opt_redhat) {
    $os_variant=":R";
+   &info("Setting the OS variant to Redhat, if this is wrong please remove the --redhat option\n");
 } else {
    $os_variant=":C";
+   &info("Setting the OS variant to CentOS, if this is wrong please add the --redhat option\n");
 }
 
 # Output $version string in debug mode
@@ -590,7 +705,7 @@ if ($session =~ /^\w+$/) {
 } 
 
 # For RedHat: connect to RHN
-if ($opt_get_from_rhn || $opt_redhat) {
+if ($opt_get_from_rhn || ($opt_redhat && !defined($opt_epel_erratafile))) {
    &set_proxy($opt_rhn_proxy);
    if (defined($opt_rhn_user)) {
       $rhn_username = $opt_rhn_user;
@@ -694,7 +809,6 @@ if (!$found) {
     my $version=$pkg->{"version"};
     my $release=$pkg->{"release"};
     my $arch_label=$pkg->{"arch_label"};
-    my $filename="";
 
     # epoch is not being used in the package name
     #my $epoch=$pkg->{"epoch"};
@@ -703,7 +817,7 @@ if (!$found) {
     #} else {
     #     $filename="$name-$version-$release.$arch_label.rpm";
     #}
-    $filename="$name-$version-$release.$arch_label.rpm";
+    my $filename="$name-$version-$release.$arch_label.rpm";
 
     &debug("Package ID $pkg->{'id'} is $filename\n");
     $name2id{$filename} = $pkg->{'id'};
@@ -714,7 +828,9 @@ if (!$found) {
 # Read the XML errata file #
 ############################
 &info("Loading errata\n");
-if ($opt_redhat) {
+if ($opt_epel_erratafile) {
+  $xml = &parse_updatexml($opt_epel_erratafile);
+} elsif ($opt_redhat) {
   $xml = &parse_redhat_errata($rhn_client,$rhn_session);
 } else {
   $xml = &parse_archivedir();
@@ -748,7 +864,7 @@ foreach my $advid (sort(keys(%{$xml}))) {
   my @cves = ();
 
   # Only consider CentOS errata
-  unless($advid =~ /^CE|^RH/) { &debug("Skipping $advid\n"); next; }
+  unless($advid =~ /^CE|^RH|^FEDORA-EPEL/) { &debug("Skipping $advid\n"); next; }
 
   # Check command line options for errata to consider
   if ($opt_security || $opt_bugfix || $opt_enhancement) {
@@ -878,13 +994,16 @@ foreach my $advid (sort(keys(%{$xml}))) {
     }
 
     my (@keywords,@bugs);
-    if ($opt_get_from_rhn || $opt_redhat) {
+    if (!defined($opt_epel_erratafile) && ($opt_get_from_rhn || $opt_redhat)) {
 	# for both CentOS and RedHat
         &set_proxy($opt_rhn_proxy);
         @keywords=&rhn_get_keywords($rhn_client,$rhn_session,$advid);
         @bugs=&rhn_get_bugs($rhn_client,$rhn_session,$advid,$opt_bugzilla_url);
         @cves=&rhn_get_cves($rhn_client,$rhn_session,$advid);
         &set_proxy($opt_proxy);
+    }
+    if (defined($opt_epel_erratafile) && defined($xml->{$advid}->{'bugs'})) {
+	@bugs=@{$xml->{$advid}->{'bugs'}};
     }
 
     if (@packages >= 1) {
@@ -928,4 +1047,3 @@ if ($opt_get_from_rhn) {
 	$rhn_client->call('auth.logout', $rhn_session);
         &set_proxy($opt_proxy);
 }
-
