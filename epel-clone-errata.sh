@@ -25,8 +25,8 @@ export https_proxy=
 wget -q --no-cache http://dl.fedoraproject.org/pub/epel/6/x86_64/repodata/updateinfo.xml.gz
 gunzip /tmp/epel-errata/updateinfo.xml.gz
 # upload the errata to spacewalk, for a channel used by redhat servers:
-/sbin/ya-errata-import.pl --epel_errata updateinfo.xml --server $SPACEWALK --channel rhel-x86_64-server-6-epel --os-version 6 --redhat --startfromprevious twoweeks --quiet
+/sbin/ya-errata-import.pl --epel_errata updateinfo.xml --server $SPACEWALK --channel rhel-x86_64-server-6-epel --os-version 6 --publish --redhat --startfromprevious twoweeks --quiet
 # upload the errata to spacewalk, for a channel used by centos servers:
-/sbin/ya-errata-import.pl --epel_errata updateinfo.xml --server $SPACEWALK --channel centos-x86_64-server-6-epel --os-version 6  --startfromprevious twoweeks --quiet
+/sbin/ya-errata-import.pl --epel_errata updateinfo.xml --server $SPACEWALK --channel centos-x86_64-server-6-epel --os-version 6 --publish --startfromprevious twoweeks --quiet
 
 rm -f /tmp/epel-errata/*
