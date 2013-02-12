@@ -99,7 +99,7 @@ my $opt_spacewalk_user;
 my $opt_spacewalk_pwd;
 my $opt_rhn_user;
 my $opt_rhn_pwd;
-my $opt_epel_erratafile="";
+my $opt_epel_erratafile;
 
 #######################################################################
 ### PROCEDURES
