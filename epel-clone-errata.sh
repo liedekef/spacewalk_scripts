@@ -25,7 +25,7 @@ rm -f $ERRATADIR/* >/dev/null 2>&1
 
    # now download the errata, in this example we do it for EPEL-6-x86_64
    wget -q --no-cache http://dl.fedoraproject.org/pub/epel/6/x86_64/repodata/updateinfo.xml.gz
-   gunzip /tmp/epel-errata/updateinfo.xml.gz
+   gunzip updateinfo.xml.gz
 )
 
 # Set usernames and passwords. You have some options here:
