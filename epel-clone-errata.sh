@@ -5,28 +5,46 @@
 # also: if you're using the commandline options for usernames and passwords, comment out the
 # line that says ". ./ya-errata-import.cfg"
 
-# Fetches the errata data 
-mkdir /tmp/epel-errata >/dev/null 2>&1
-cd /tmp/epel-errata
-rm -f /tmp/epel-errata/* >/dev/null 2>&1
+# set fixed locale
+export LC_ALL=C
+export LANG=C
 
 # Set your spacewalk server
 SPACEWALK=127.0.0.1
 
-# get usernames and passwords
-# don't use this if you're using the commandline options for usernames and passwords
+# The number of digests to download
+# Since the digests are normally only downloaded for 1 month, any number bigger than 31 makes no sence
+NBR_DIGESTS=5
+
+# create and/or cleanup the errata dir
+ERRATADIR=/tmp/epel-errata
+mkdir $ERRATADIR >/dev/null 2>&1
+rm -f $ERRATADIR/* >/dev/null 2>&1
+
+(
+   cd $ERRATADIR
+   # wget needs a proxy? Then set these
+   export http_proxy=
+   export https_proxy=
+
+   # now download the errata, in this example we do it for EPEL-6-x86_64
+   wget -q --no-cache http://dl.fedoraproject.org/pub/epel/6/x86_64/repodata/updateinfo.xml.gz
+   gunzip /tmp/epel-errata/updateinfo.xml.gz
+)
+
+# Set usernames and passwords. You have some options here:
+# 1) Either define the environment variables here:
+# export SPACEWALK_USER=my_username
+# export SPACEWALK_PASS=my_passwd
+# export RHN_USER=my_rhn_username
+# export RHN_PASS=my_rhn_password
+# 2) Set them on the commandline (but I don't recommend it)
+# 3) Set them in a separate cfg file and source it (like done below)
 . ./ya-errata-import.cfg
 
-# if wget needs a proxy, set it here
-export http_proxy=
-export https_proxy=
-
-# now download the errata, in this example we do it for EPEL-6-x86_64
-wget -q --no-cache http://dl.fedoraproject.org/pub/epel/6/x86_64/repodata/updateinfo.xml.gz
-gunzip /tmp/epel-errata/updateinfo.xml.gz
-# upload the errata to spacewalk, for a channel used by redhat servers:
+# upload the errata to spacewalk, e.g. for a channel used by redhat servers:
 /sbin/ya-errata-import.pl --epel_errata updateinfo.xml --server $SPACEWALK --channel rhel-x86_64-server-6-epel --os-version 6 --publish --redhat --startfromprevious twoweeks --quiet
-# upload the errata to spacewalk, for a channel used by centos servers:
+# upload the errata to spacewalk, e.g. for a channel used by centos servers:
 /sbin/ya-errata-import.pl --epel_errata updateinfo.xml --server $SPACEWALK --channel centos-x86_64-server-6-epel --os-version 6 --publish --startfromprevious twoweeks --quiet
 
-rm -f /tmp/epel-errata/*
+rm -f $ERRATADIR/*
