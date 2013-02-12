@@ -12,10 +12,6 @@ export LANG=C
 # Set your spacewalk server
 SPACEWALK=127.0.0.1
 
-# The number of digests to download
-# Since the digests are normally only downloaded for 1 month, any number bigger than 31 makes no sence
-NBR_DIGESTS=5
-
 # create and/or cleanup the errata dir
 ERRATADIR=/tmp/epel-errata
 mkdir $ERRATADIR >/dev/null 2>&1
