@@ -39,8 +39,8 @@ rm -f $ERRATADIR/* >/dev/null 2>&1
 . ./ya-errata-import.cfg
 
 # upload the errata to spacewalk, e.g. for a channel used by redhat servers:
-/sbin/ya-errata-import.pl --epel_errata updateinfo.xml --server $SPACEWALK --channel rhel-x86_64-server-6-epel --os-version 6 --publish --redhat --startfromprevious twoweeks --quiet
+/sbin/ya-errata-import.pl --epel_errata $ERRATADIR/updateinfo.xml --server $SPACEWALK --channel rhel-x86_64-server-6-epel --os-version 6 --publish --redhat --startfromprevious twoweeks --quiet
 # upload the errata to spacewalk, e.g. for a channel used by centos servers:
-/sbin/ya-errata-import.pl --epel_errata updateinfo.xml --server $SPACEWALK --channel centos-x86_64-server-6-epel --os-version 6 --publish --startfromprevious twoweeks --quiet
+/sbin/ya-errata-import.pl --epel_errata $ERRATADIR/updateinfo.xml --server $SPACEWALK --channel centos-x86_64-server-6-epel --os-version 6 --publish --startfromprevious twoweeks --quiet
 
 rm -f $ERRATADIR/*
