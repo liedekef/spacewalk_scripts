@@ -13,8 +13,14 @@ export LANG=C
 SPACEWALK=127.0.0.1
 
 # The number of digests to download (normally there is max 1 errata per day)
-# Since the digests are normally only downloaded for 1 month, any number bigger than 28 (Februari) makes no sence
+# Since the digests are normally only downloaded for 1 month, any number not in the range 1-28 (Februari) makes no sence
 NBR_DIGESTS=5
+if [ $NBR_DIGESTS -lt 1 ]; then
+   $NBR_DIGESTS=1;
+fi
+if [ $NBR_DIGESTS -gt 28 ]; then
+   $NBR_DIGESTS=28;
+fi
 
 # create and/or cleanup the errata dir
 ERRATADIR=/tmp/centos-errata
