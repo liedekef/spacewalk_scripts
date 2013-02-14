@@ -13,7 +13,7 @@ export LANG=C
 SPACEWALK=127.0.0.1
 
 # The number of digests to download (normally there is max 1 errata per day)
-# Since the digests are normally only downloaded for 1 month, any number bigger than 31 makes no sence
+# Since the digests are normally only downloaded for 1 month, any number bigger than 28 (Februari) makes no sence
 NBR_DIGESTS=5
 
 # create and/or cleanup the errata dir
@@ -31,12 +31,8 @@ rm -f $ERRATADIR/* >/dev/null 2>&1
    # for the first day of the month: also consider last month
    # this only applies if the script is ran EVERY DAY
    if [ $day -lt $NBR_DIGESTS ]; then
-      yearmon=`date -u -d '$NBR_DIGESTS days ago' +%Y-%B`\ $yearmon
+      yearmon=`date -u -d "$NBR_DIGESTS days ago" +%Y-%B`\ $yearmon
    fi
-   # IF NOT EVERY DAY, use the following code as an example:
-   #if [ $day -le 5 ]; then
-   #   yearmon=`date -u -d '6 days ago' +%Y-%B`\ $yearmon
-   #fi
 
    # Use wget to fetch the errata data from centos.org
    listurl=http://lists.centos.org/pipermail/centos
