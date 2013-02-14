@@ -29,8 +29,8 @@ NBR_DIGESTS=5
 . /etc/ya-errata-import.cfg
 
 # wget needs a proxy? Then set these (or set them also in the config file you used above)
-export http_proxy=
-export https_proxy=
+#export http_proxy=
+#export https_proxy=
 
 #### STOP EDITING SECTION 1 HERE ####
 
