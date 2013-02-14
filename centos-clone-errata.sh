@@ -12,7 +12,7 @@ export LANG=C
 # Set your spacewalk server
 SPACEWALK=127.0.0.1
 
-# The number of digests to download
+# The number of digests to download (normally there is max 1 errata per day)
 # Since the digests are normally only downloaded for 1 month, any number bigger than 31 makes no sence
 NBR_DIGESTS=5
 
@@ -30,8 +30,8 @@ rm -f $ERRATADIR/* >/dev/null 2>&1
    eval `exec /bin/date -u +'yearmon=%Y-%B day=%d'`
    # for the first day of the month: also consider last month
    # this only applies if the script is ran EVERY DAY
-   if [ $day -eq 01 ]; then
-      yearmon=`date -u -d '2 days ago' +%Y-%B`\ $yearmon
+   if [ $day -lt $NBR_DIGESTS ]; then
+      yearmon=`date -u -d '$NBR_DIGESTS days ago' +%Y-%B`\ $yearmon
    fi
    # IF NOT EVERY DAY, use the following code as an example:
    #if [ $day -le 5 ]; then
