@@ -15,7 +15,7 @@ export LANG=C
 SPACEWALK=127.0.0.1
 
 # The number of digests to download (normally there is max 1 errata per day)
-# Since the digests are normally only downloaded for 1 month, any number not in the range 1-28 (Februari) makes no sence
+# Since the digests are normally only downloaded for 1 month, any number not in the range 1-28 (February) makes no sense
 NBR_DIGESTS=5
 
 # Set usernames and passwords. You have some options here:
@@ -35,10 +35,10 @@ NBR_DIGESTS=5
 #### STOP EDITING SECTION 1 HERE ####
 
 if [ $NBR_DIGESTS -lt 1 ]; then
-   $NBR_DIGESTS=1;
+   NBR_DIGESTS=1;
 fi
 if [ $NBR_DIGESTS -gt 28 ]; then
-   $NBR_DIGESTS=28;
+   NBR_DIGESTS=28;
 fi
 
 # create and/or cleanup the errata dir
