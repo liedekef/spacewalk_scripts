@@ -54,7 +54,7 @@ $| = 1;
 my ($client,$rhn_client);
 my $apiversion;
 my $apisupport = 0;
-my ($xml, $rhsaxml, $epelxml);
+my ($xml, $rhsaxml);
 my ($session, $username, $password,$rhn_session,$rhn_username,$rhn_password);
 #my %name2channel;
 my %name2id;
@@ -100,6 +100,7 @@ my $opt_spacewalk_pwd;
 my $opt_rhn_user;
 my $opt_rhn_pwd;
 my $opt_epel_erratafile;
+my $opt_oel_erratafile;
 
 #######################################################################
 ### PROCEDURES
@@ -130,11 +131,12 @@ sub usage() {
   print "Otherwise you'll be asked for it if not given but needed.\n\n";
   print "Usage: $0 --server <SERVER> --erratadir <ERRATA-DIR> \n";
   print "         --channel=<CHANNEL> --os-version <VERSION>\n";
-  print "       [ --rhsa-oval <REDHAT-OVAL-XML> | --debug |\n";
+  print "       [ --rhsa-oval <REDHAT-OVAL-XML> | --debug |\n";
 #  print "         --sync-channels | --sync-timeout=<TIMEOUT> |\n";
   print "         --bugfix | --security | --enhancement |\n";
 #  print "         --autopush ]\n";
-  print "         --epel_errata <PATH to updateinfo.xml> |\n";
+  print "         --epel_errata <PATH to EPEL updateinfo.xml> |\n";
+  print "         --oel_errata <PATH to OEL updateinfo.xml> |\n";
   print "         --publish | --quiet | --get-from-rhn | -- architecture <ARCH> |\n";
   print "         --rhn-proxy <PROXY> | --rhn-server <RHNSERVER> |\n";
   print "         --spacewalk-user <USER> | --spacewalk-pass <PWD> |\n";
@@ -153,6 +155,10 @@ sub usage() {
   print "REQUIRED for EPEL errata:\n";
   print "  --epel_errata\t\tPath to the unzipped updateinfo.xml file\n";
   print "\t\t\tIf using epel errata, use the --redhat option to indicate that the spacewalk channel\n";
+  print "\t\t\tyou're pushing erratas in, is a redhat based channel, this just influences the name of the errata in spacewalk\n";
+  print "\n";
+  print "REQUIRED for OEL errata:\n";
+  print "  --oel_errata\t\tPath to the unzipped updateinfo.xml file\n";
   print "\t\t\tyou're pushing erratas in, is a redhat based channel, this just influences the name of the errata in spacewalk\n";
   print "\n";
   print "OPTIONAL:\n";
@@ -559,6 +565,7 @@ my $getopt = GetOptions( 'server=s'		=> \$opt_server,
                       'erratadir=s'		=> \$opt_erratadir,
                       'rhsa-oval=s'		=> \$opt_rhsaovalfile,
                       'epel_errata=s'		=> \$opt_epel_erratafile,
+                      'oel_errata=s'		=> \$opt_oel_erratafile,
                       'debug'			=> \$opt_debug,
                       'publish'			=> \$opt_publish,
 		      'security'		=> \$opt_security,
@@ -600,7 +607,7 @@ if ( not(defined($opt_server)) || not(defined($opt_channel)) ) {
 }
 
 #if ( not(defined($opt_erratadir)) && !$opt_redhat ) {
-if ( !$opt_redhat && !defined($opt_erratadir) && !defined($opt_epel_erratafile)) {
+if ( !$opt_redhat && !defined($opt_erratadir) && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile)) {
   &usage;
   exit 1;
 }
@@ -623,13 +630,16 @@ if (defined($opt_architecture) && $opt_architecture ne "i386" && $opt_architectu
   &info("Architecture is not specified, will try to determine it based on the channel properties of '$opt_channel'\n");
 }
 
-if ($opt_redhat && !defined($opt_redhat_channel) && !defined($opt_epel_erratafile)) {
+if ($opt_redhat && !defined($opt_redhat_channel) && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile)) {
   &info("\nno redhat channel specified, assuming the name '$opt_channel'\n\n");
   $opt_redhat_channel=$opt_channel;
 }
 
 # Set the OS variant
-if ($opt_redhat) {
+if ($opt_oel_erratafile) {
+   $os_variant=":O";
+   &info("Setting the OS variant to OEL, if this is wrong please remove the --oel_errata option\n");
+} elsif ($opt_redhat) {
    $os_variant=":R";
    &info("Setting the OS variant to Redhat, if this is wrong please remove the --redhat option\n");
 } else {
@@ -705,7 +715,7 @@ if ($session =~ /^\w+$/) {
 } 
 
 # For RedHat: connect to RHN
-if ($opt_get_from_rhn || ($opt_redhat && !defined($opt_epel_erratafile))) {
+if ($opt_get_from_rhn || ($opt_redhat && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile))) {
    &set_proxy($opt_rhn_proxy);
    if (defined($opt_rhn_user)) {
       $rhn_username = $opt_rhn_user;
@@ -830,6 +840,8 @@ if (!$found) {
 &info("Loading errata\n");
 if ($opt_epel_erratafile) {
   $xml = &parse_updatexml($opt_epel_erratafile);
+} elsif ($opt_oel_erratafile) {
+  $xml = &parse_updatexml($opt_oel_erratafile);
 } elsif ($opt_redhat) {
   $xml = &parse_redhat_errata($rhn_client,$rhn_session);
 } else {
@@ -864,7 +876,7 @@ foreach my $advid (sort(keys(%{$xml}))) {
   my @cves = ();
 
   # Only consider CentOS errata
-  unless($advid =~ /^CE|^RH|^FEDORA-EPEL/) { &debug("Skipping $advid\n"); next; }
+  unless($advid =~ /^CE|^RH|^FEDORA-EPEL|CVE/) { &debug("Skipping $advid\n"); next; }
 
   # Check command line options for errata to consider
   if ($opt_security || $opt_bugfix || $opt_enhancement) {
@@ -994,7 +1006,7 @@ foreach my $advid (sort(keys(%{$xml}))) {
     }
 
     my (@keywords,@bugs);
-    if (!defined($opt_epel_erratafile) && ($opt_get_from_rhn || $opt_redhat)) {
+    if (!defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && ($opt_get_from_rhn || $opt_redhat)) {
 	# for both CentOS and RedHat
         &set_proxy($opt_rhn_proxy);
         @keywords=&rhn_get_keywords($rhn_client,$rhn_session,$advid);
@@ -1003,6 +1015,9 @@ foreach my $advid (sort(keys(%{$xml}))) {
         &set_proxy($opt_proxy);
     }
     if (defined($opt_epel_erratafile) && defined($xml->{$advid}->{'bugs'})) {
+	@bugs=@{$xml->{$advid}->{'bugs'}};
+    }
+    if (defined($opt_oel_erratafile) && defined($xml->{$advid}->{'bugs'})) {
 	@bugs=@{$xml->{$advid}->{'bugs'}};
     }
 
@@ -1047,3 +1062,4 @@ if ($opt_get_from_rhn) {
 	$rhn_client->call('auth.logout', $rhn_session);
         &set_proxy($opt_proxy);
 }
+
