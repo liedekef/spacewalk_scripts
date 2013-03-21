@@ -255,6 +255,10 @@ sub parse_updatexml($) {
 	my @packages;
 	foreach my $pkg (keys %{$errata->{'pkglist'}->{'collection'}->{'package'}}) {
 		my $pkg_info = $errata->{'pkglist'}->{'collection'}->{'package'}->{$pkg};
+                # Sometimes, there is only one package and they didn't bother to put it correctly in the XML as a subhash
+                if (ref($pkg_info) ne "HASH") {
+                        $pkg_info=$errata->{'pkglist'}->{'collection'}->{'package'};
+                }
 		if ($pkg_info->{'arch'} ne 'src' && $pkg_info->{'filename'} !~ /src\.rpm$|debuginfo/) {
 			my $pkg_filename = $pkg_info->{'filename'};
 			push (@packages,$pkg_filename);
