@@ -148,7 +148,7 @@ sub usage() {
   print "REQUIRED:\n";
   print "  --server\t\tThe hostname or IP address of your spacewalk server\n";
   print "  --channel\t\tThe spacewalk channel you want to publish errata to\n";
-  print "  --os-version\t\tThe OS major version we're dealing with, used for the errata suffix\n";
+  print "  --os-version\t\tThe OS major version we're dealing with, used as part of the errata advisory name\n";
   print "\n";
   print "REQUIRED for CentOS errata:\n";
   print "  --erratadir\t\tThe dir containing CentOS errata announcement digest archives\n";
@@ -181,7 +181,7 @@ sub usage() {
   print "  --spacewalk-pass\tthe password to connect to spacewalk (see also comments at the top)\n";
   print "  --rhn-user\t\tthe username to connect to RHN (see also comments at the top)\n";
   print "  --rhn-pass\t\tthe password to connect to RHN (see also comments at the top)\n";
-  print "  --suffix\t\tAn optional suffix to the errata name in spacewalk\n";
+  print "  --suffix\t\tAn optional suffix to the advisory name in spacewalk\n";
   print "\n";
   print "OPTIONAL for CentOS errata:\n";
   print "  --rhsa-oval\t\tOVAL XML file from Red Hat\n";
