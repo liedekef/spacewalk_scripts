@@ -101,6 +101,7 @@ my $opt_rhn_user;
 my $opt_rhn_pwd;
 my $opt_epel_erratafile;
 my $opt_oel_erratafile;
+my $opt_suffix;
 
 #######################################################################
 ### PROCEDURES
@@ -141,7 +142,8 @@ sub usage() {
   print "         --rhn-proxy <PROXY> | --rhn-server <RHNSERVER> |\n";
   print "         --spacewalk-user <USER> | --spacewalk-pass <PWD> |\n";
   print "         --rhn-user <RHNUSER> | --rhn-pass <RHNPWD> |\n";
-  print "         --proxy <PROXY> | --bugzilla-url <URL> ]\n";
+  print "         --proxy <PROXY> | --bugzilla-url <URL> |\n";
+  print "         --suffix <SUFFIX> ]\n";
   print "\n";
   print "REQUIRED:\n";
   print "  --server\t\tThe hostname or IP address of your spacewalk server\n";
@@ -179,6 +181,7 @@ sub usage() {
   print "  --spacewalk-pass\tthe password to connect to spacewalk (see also comments at the top)\n";
   print "  --rhn-user\t\tthe username to connect to RHN (see also comments at the top)\n";
   print "  --rhn-pass\t\tthe password to connect to RHN (see also comments at the top)\n";
+  print "  --suffix\t\tAn optional suffix to the errata name in spacewalk\n";
   print "\n";
   print "OPTIONAL for CentOS errata:\n";
   print "  --rhsa-oval\t\tOVAL XML file from Red Hat\n";
@@ -596,7 +599,8 @@ my $getopt = GetOptions( 'server=s'		=> \$opt_server,
                       'spacewalk-user=s'	=> \$opt_spacewalk_user,
                       'spacewalk-pass=s'	=> \$opt_spacewalk_pwd,
                       'rhn-user=s'		=> \$opt_rhn_user,
-                      'rhn-pass=s'		=> \$opt_rhn_pwd
+                      'rhn-pass=s'              => \$opt_rhn_pwd,
+                      'suffix=s'                => \$opt_suffix
                      );
 
 # Check for arguments
@@ -917,6 +921,10 @@ foreach my $advid (sort(keys(%{$xml}))) {
   } else {
 	$adv_name.="-64";
   }
+  if (defined($opt_suffix)) {
+     $adv_name.=$opt_suffix;
+  }
+  
   # Check if the errata already exists
   eval {$getdetails = $client->call('errata.get_details', $session, $adv_name)};
   if ($@) {
