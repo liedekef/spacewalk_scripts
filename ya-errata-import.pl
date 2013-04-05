@@ -34,7 +34,7 @@ use Time::Local;
 
 # Version information
 my $version = "20130211";
-my @supportedapi = ( '10.9','10.11','11.00','11.1' );
+my @supportedapi = ( '10.9','10.11','11.00','11.1','12' );
 
 # Spacewalk Version => API cheatsheet
 # 0.6 => 10.9  == TESTED
@@ -686,7 +686,7 @@ foreach (@supportedapi) {
 
 # In case we found an unsupported API
 if (not($apisupport)) {
-  &error("Your API version is not supported. Try upgrading this script.\n");
+  &error("Your API version ($apiversion) is not supported. Try upgrading this script.\n");
   exit 2;
 }
 
