@@ -16,6 +16,8 @@
 #          - add support for redhat errata and servers
 #          - time ranges
 # 20130125 - added commandline options for usernames and pwds
+# 20130xxx - added support for Oracle Linux
+# 20130424 - added support for Scientific Linux (thanks to Bryan Casto)
 
 # Load modules
 use strict;
@@ -66,7 +68,7 @@ my $undopush;
 my ($pkg, $allpkg, $pkgdetails, $package);
 my ($advisory, $ovalid);
 my $getdetails;
-my $os_variant; # Either 'C' for CentOS or 'R' for RedHat
+my $os_variant; # One of 'C' for CentOS, 'R' for RedHat, or 'S' for Scientific
 
 my $opt_syncchannels = 0;
 my $opt_synccounter = 0;
@@ -101,6 +103,7 @@ my $opt_rhn_user;
 my $opt_rhn_pwd;
 my $opt_epel_erratafile;
 my $opt_oel_erratafile;
+my $opt_sl_erratafile;
 my $opt_suffix;
 
 #######################################################################
@@ -138,6 +141,7 @@ sub usage() {
 #  print "         --autopush ]\n";
   print "         --epel_errata <PATH to EPEL updateinfo.xml> |\n";
   print "         --oel_errata <PATH to OEL updateinfo.xml> |\n";
+  print "         --sl_errata <PATH to SL updateinfo.xml> |\n";
   print "         --publish | --quiet | --get-from-rhn | -- architecture <ARCH> |\n";
   print "         --rhn-proxy <PROXY> | --rhn-server <RHNSERVER> |\n";
   print "         --spacewalk-user <USER> | --spacewalk-pass <PWD> |\n";
@@ -161,6 +165,10 @@ sub usage() {
   print "\n";
   print "REQUIRED for OEL errata:\n";
   print "  --oel_errata\t\tPath to the unzipped updateinfo.xml file\n";
+  print "\t\t\tyou're pushing erratas in, is a redhat based channel, this just influences the name of the errata in spacewalk\n";
+  print "\n";
+  print "REQUIRED for SL errata:\n";
+  print "  --sl_errata\t\tPath to the unzipped updateinfo.xml file\n";
   print "\t\t\tyou're pushing erratas in, is a redhat based channel, this just influences the name of the errata in spacewalk\n";
   print "\n";
   print "OPTIONAL:\n";
@@ -432,14 +440,14 @@ sub channel_get_details($$$) {
 
 sub rhn_get_details($$$) {
     my ($client,$sessionid,$advisory_name)=@_;
-    $advisory_name =~ s/CE/RH/g;
+    $advisory_name =~ s/CE|SL/RH/g;
     my $details=$client->call('errata.getDetails',$sessionid,$advisory_name);
     return $details;
 }
 
 sub rhn_get_keywords($$$) {
     my ($client,$sessionid,$advisory_name)=@_;
-    $advisory_name =~ s/CE/RH/g;
+    $advisory_name =~ s/CE|SL/RH/g;
     #my @keywords=eval($client->call('errata.listKeywords',$sessionid,$advisory_name));
     my $keywords=$client->call('errata.listKeywords',$sessionid,$advisory_name);
     if (wantarray) {
@@ -450,7 +458,7 @@ sub rhn_get_keywords($$$) {
 }
 sub rhn_get_bugs($$$$) {
     my ($client,$sessionid,$advisory_name,$bugzilla_url)=@_;
-    $advisory_name =~ s/CE/RH/g;
+    $advisory_name =~ s/CE|SL/RH/g;
     my $bugzilla='';
     if ($bugzilla_url) {
         $bugzilla=$bugzilla_url . 'show_bug.cgi?id=';
@@ -477,7 +485,7 @@ sub rhn_get_bugs($$$$) {
 
 sub rhn_get_packages($$$) {
     my ($client,$sessionid,$advisory_name)=@_;
-    $advisory_name =~ s/CE/RH/g;
+    $advisory_name =~ s/CE|SL/RH/g;
     my $packages=$client->call('errata.listPackages',$sessionid,$advisory_name);
     my @packages;
     foreach my $pkg (@$packages) {
@@ -496,7 +504,7 @@ sub rhn_get_packages($$$) {
 
 sub rhn_get_cves($$$) {
     my ($client,$sessionid,$advisory_name)=@_;
-    $advisory_name =~ s/CE/RH/g;
+    $advisory_name =~ s/CE|SL/RH/g;
     my $cve=$client->call('errata.listCves',$sessionid,$advisory_name);
     if (wantarray) {
         return @{$cve};
@@ -573,6 +581,7 @@ my $getopt = GetOptions( 'server=s'		=> \$opt_server,
                       'rhsa-oval=s'		=> \$opt_rhsaovalfile,
                       'epel_errata=s'		=> \$opt_epel_erratafile,
                       'oel_errata=s'		=> \$opt_oel_erratafile,
+                      'sl_errata=s'             => \$opt_sl_erratafile,
                       'debug'			=> \$opt_debug,
                       'publish'			=> \$opt_publish,
 		      'security'		=> \$opt_security,
@@ -615,7 +624,7 @@ if ( not(defined($opt_server)) || not(defined($opt_channel)) ) {
 }
 
 #if ( not(defined($opt_erratadir)) && !$opt_redhat ) {
-if ( !$opt_redhat && !defined($opt_erratadir) && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile)) {
+if ( !$opt_redhat && !defined($opt_erratadir) && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && !defined($opt_sl_erratafile)) {
   &usage;
   exit 1;
 }
@@ -638,7 +647,7 @@ if (defined($opt_architecture) && $opt_architecture ne "i386" && $opt_architectu
   &info("Architecture is not specified, will try to determine it based on the channel properties of '$opt_channel'\n");
 }
 
-if ($opt_redhat && !defined($opt_redhat_channel) && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile)) {
+if ($opt_redhat && !defined($opt_redhat_channel) && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && !defined($opt_sl_erratafile)) {
   &info("\nno redhat channel specified, assuming the name '$opt_channel'\n\n");
   $opt_redhat_channel=$opt_channel;
 }
@@ -647,6 +656,9 @@ if ($opt_redhat && !defined($opt_redhat_channel) && !defined($opt_epel_erratafil
 if ($opt_oel_erratafile) {
    $os_variant=":O";
    &info("Setting the OS variant to OEL, if this is wrong please remove the --oel_errata option\n");
+} elsif ($opt_sl_erratafile) {
+   $os_variant=":S";
+   &info("Setting the OS variant to Scientific, if this is wrong please remove the --sl_errata option\n");
 } elsif ($opt_redhat) {
    $os_variant=":R";
    &info("Setting the OS variant to Redhat, if this is wrong please remove the --redhat option\n");
@@ -723,7 +735,7 @@ if ($session =~ /^\w+$/) {
 } 
 
 # For RedHat: connect to RHN
-if ($opt_get_from_rhn || ($opt_redhat && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile))) {
+if ($opt_get_from_rhn || ($opt_redhat && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && !defined($opt_sl_erratafile))) {
    &set_proxy($opt_rhn_proxy);
    if (defined($opt_rhn_user)) {
       $rhn_username = $opt_rhn_user;
@@ -850,6 +862,8 @@ if ($opt_epel_erratafile) {
   $xml = &parse_updatexml($opt_epel_erratafile);
 } elsif ($opt_oel_erratafile) {
   $xml = &parse_updatexml($opt_oel_erratafile);
+} elsif ($opt_sl_erratafile) {
+  $xml = &parse_updatexml($opt_sl_erratafile);
 } elsif ($opt_redhat) {
   $xml = &parse_redhat_errata($rhn_client,$rhn_session);
 } else {
@@ -884,7 +898,7 @@ foreach my $advid (sort(keys(%{$xml}))) {
   my @cves = ();
 
   # Only consider CentOS errata
-  unless($advid =~ /^CE|^RH|^FEDORA-EPEL|CVE/) { &debug("Skipping $advid\n"); next; }
+  unless($advid =~ /^CE|^RH|^SL|^FEDORA-EPEL|CVE/) { &debug("Skipping $advid\n"); next; }
 
   # Check command line options for errata to consider
   if ($opt_security || $opt_bugfix || $opt_enhancement) {
@@ -909,8 +923,8 @@ foreach my $advid (sort(keys(%{$xml}))) {
 
   # Generate OVAL ID for security errata
   $ovalid = "";
-  if ($advid =~ /CESA/) {
-    $advid =~ /CESA-(\d+):(\d+)/;
+  if ($advid =~ /CESA|SLSA/) {
+    $advid =~ /..SA-(\d+):(\d+)/;
     $ovalid = "oval:com.redhat.rhsa:def:$1".sprintf("%04d", $2);
     &debug("Processing $advid -- OVAL ID is $ovalid\n");
   }
@@ -1011,14 +1025,24 @@ foreach my $advid (sort(keys(%{$xml}))) {
 	$erratainfo{'description'}=$rhn_errata_details->{'errata_description'};
 	$erratainfo{'topic'}=$rhn_errata_details->{'errata_topic'};
 	# let's replace the redhat references in the text
-	$erratainfo{'notes'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/CentOS/gs;
-	$erratainfo{'description'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/CentOS/gs;
-	$erratainfo{'topic'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/CentOS/gs;
+        if ($os_variant eq ':O') {
+  		$erratainfo{'notes'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Oracle Enterprise Linux/gs;
+		$erratainfo{'description'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Oracle Enterprise Linux/gs;
+		$erratainfo{'topic'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Oracle Enterprise Linux/gs;
+	} elsif ($os_variant eq ':S') {
+		$erratainfo{'notes'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Scientific Linux/gs;
+                $erratainfo{'description'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Scientific Linux/gs;
+                $erratainfo{'topic'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Scientific Linux/gs;
+	} else {
+		$erratainfo{'notes'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/CentOS/gs;
+                $erratainfo{'description'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/CentOS/gs;
+                $erratainfo{'topic'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/CentOS/gs;
+	}
         &set_proxy($opt_proxy);
     }
 
     my (@keywords,@bugs);
-    if (!defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && ($opt_get_from_rhn || $opt_redhat)) {
+    if (!defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && !defined($opt_sl_erratafile) && ($opt_get_from_rhn || $opt_redhat)) {
 	# for both CentOS and RedHat
         &set_proxy($opt_rhn_proxy);
         @keywords=&rhn_get_keywords($rhn_client,$rhn_session,$advid);
@@ -1031,6 +1055,9 @@ foreach my $advid (sort(keys(%{$xml}))) {
     }
     if (defined($opt_oel_erratafile) && defined($xml->{$advid}->{'bugs'})) {
 	@bugs=@{$xml->{$advid}->{'bugs'}};
+    }
+    if (defined($opt_sl_erratafile) && defined($xml->{$advid}->{'bugs'})) {
+        @bugs=@{$xml->{$advid}->{'bugs'}};
     }
 
     if (@packages >= 1) {
