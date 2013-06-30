@@ -18,6 +18,7 @@
 # 20130125 - added commandline options for usernames and pwds
 # 20130xxx - added support for Oracle Linux
 # 20130424 - added support for Scientific Linux (thanks to Bryan Casto)
+# 20130630 - Fix for multiple OS messages in one CentOS digest with the same advisory ID
 
 # Load modules
 use strict;
@@ -35,7 +36,7 @@ use Time::Local;
 #######################################################################
 
 # Version information
-my $version = "20130211";
+my $version = "20130630";
 my @supportedapi = ( '10.9','10.11','11.00','11.1','12' );
 
 # Spacewalk Version => API cheatsheet
@@ -50,6 +51,7 @@ my @supportedapi = ( '10.9','10.11','11.00','11.1','12' );
 # 1.5 => 11.00 == TESTED
 # 1.6 => 11.1  == TESTED
 # 1.7 => 11.1  == TESTED
+# 1.9 => 12 == TESTED
 
 # Variable declation
 $| = 1;
@@ -392,6 +394,9 @@ sub parse_archivedir() {
 		(my $advid = $subject) =~ s/(.*?) .*/$1/;
 		(my $synopsis = $subject) =~ s/.*? (.*)/$1/;
 		(my $os_release = $subject) =~ s/.* (\d+) .*/$1/;
+		if ($os_release != $opt_os_version) {
+			next;
+		}
 
 		# now get the packages per architecture
 		my $i386_packages="";
