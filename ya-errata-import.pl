@@ -37,7 +37,7 @@ use Time::Local;
 
 # Version information
 my $version = "20130630";
-my @supportedapi = ( '10.9','10.11','11.00','11.1','12' );
+my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13' );
 
 # Spacewalk Version => API cheatsheet
 # 0.6 => 10.9  == TESTED
@@ -52,6 +52,7 @@ my @supportedapi = ( '10.9','10.11','11.00','11.1','12' );
 # 1.6 => 11.1  == TESTED
 # 1.7 => 11.1  == TESTED
 # 1.9 => 12 == TESTED
+# 2.0 => 13 == TESTED
 
 # Variable declation
 $| = 1;
