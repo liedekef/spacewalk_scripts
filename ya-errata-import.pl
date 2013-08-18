@@ -1103,9 +1103,11 @@ foreach my $advid (sort(keys(%{$xml}))) {
   }
 }
 
-# FIN
+# cleanup the sessions
 $client->call('auth.logout', $session);
-if ($opt_get_from_rhn) {
+
+# if connected to redhat: clean it up as well
+if ($opt_get_from_rhn || ($opt_redhat && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && !defined($opt_sl_erratafile))) {
         &set_proxy($opt_rhn_proxy);
 	$rhn_client->call('auth.logout', $rhn_session);
         &set_proxy($opt_proxy);
