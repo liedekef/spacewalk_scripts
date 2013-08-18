@@ -19,6 +19,9 @@
 # 20130xxx - added support for Oracle Linux
 # 20130424 - added support for Scientific Linux (thanks to Bryan Casto)
 # 20130630 - Fix for multiple OS messages in one CentOS digest with the same advisory ID
+# 20130726 - Support for spacewalk API 2.0
+# 20130818 - disable ssl cert verification for newer versions of libwww
+#          - session logout when connected to redhat
 
 # Load modules
 use strict;
@@ -36,7 +39,7 @@ use Time::Local;
 #######################################################################
 
 # Version information
-my $version = "20130630";
+my $version = "20130818";
 my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13' );
 
 # Just to be sure: disable SSL certificate verification for libwww>6.0
