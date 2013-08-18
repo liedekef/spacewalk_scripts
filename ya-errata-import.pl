@@ -39,6 +39,9 @@ use Time::Local;
 my $version = "20130630";
 my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13' );
 
+# Just to be sure: disable SSL certificate verification for libwww>6.0
+$ENV{'PERL_LWP_SSL_VERIFY_HOSTNAME'} = 0;
+
 # Spacewalk Version => API cheatsheet
 # 0.6 => 10.9  == TESTED
 # 0.7 => ??
@@ -54,7 +57,7 @@ my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13' );
 # 1.9 => 12 == TESTED
 # 2.0 => 13 == TESTED
 
-# Variable declation
+# Variable declaration
 $| = 1;
 my ($client,$rhn_client);
 my $apiversion;
