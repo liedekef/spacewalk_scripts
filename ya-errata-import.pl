@@ -227,8 +227,19 @@ sub uniq() {
 }
 
 sub to_epoch ($) {
-	my ($year, $month, $day, $hour, $min, $sec) = split /\W+/, $_[0];
-	return timelocal($sec,$min,$hour,$day,$month-1,$year-1900);
+   my ($year, $month, $day, $hour, $min, $sec) = split /\W+/, $_[0];
+   return timelocal($sec,$min,$hour,$day,$month-1,$year-1900);
+}
+
+sub api_sanitize ($) {
+  my $tmp_text=$_[0];
+  # Remove Umlauts -- API throws errors if they are included
+  $tmp_text = unidecode($tmp_text);
+  # Limit to length of 4000 bytes (see https://www.redhat.com/archives/spacewalk-list/2012-June/msg00128.html)
+  if (length($tmp_text) >= 4000) {
+     $tmp_text = substr($tmp_text, 0, 4000);
+  }
+  return $tmp_text;
 }
 
 sub parse_updatexml($) {
@@ -1041,13 +1052,6 @@ foreach my $advid (sort(keys(%{$xml}))) {
  
     }
     
-    # Remove Umlauts -- API throws errors if they are included
-    $erratainfo{'description'} = unidecode($erratainfo{'description'});
-    # Limit to length of 4000 bytes (see https://www.redhat.com/archives/spacewalk-list/2012-June/msg00128.html)
-    if (length($erratainfo{'description'}) >= 4000) {
-       $erratainfo{'description'} = substr($erratainfo{'description'}, 0, 4000);
-    }
-
     if ($opt_get_from_rhn && !$opt_redhat) {
 	# this only needs to be done for CentOS , not RedHat
         &set_proxy($opt_rhn_proxy);
@@ -1072,6 +1076,10 @@ foreach my $advid (sort(keys(%{$xml}))) {
 	}
         &set_proxy($opt_proxy);
     }
+
+    $erratainfo{'description'} = api_sanitize($erratainfo{'description'});
+    $erratainfo{'topic'} = api_sanitize($erratainfo{'topic'});
+    $erratainfo{'notes'} = api_sanitize($erratainfo{'notes'});
 
     my (@keywords,@bugs);
     if (!defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && !defined($opt_sl_erratafile) && ($opt_get_from_rhn || $opt_redhat)) {
