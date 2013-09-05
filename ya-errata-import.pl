@@ -1023,12 +1023,6 @@ foreach my $advid (sort(keys(%{$xml}))) {
       if ( defined($rhsaxml->{definitions}->{definition}->{$ovalid}->{metadata}->{description}) ) {
         &debug("Using description from $ovalid\n");
         $erratainfo{'description'} = $rhsaxml->{definitions}->{definition}->{$ovalid}->{metadata}->{description};
-        # Remove Umlauts -- API throws errors if they are included
-        $erratainfo{'description'} = unidecode($erratainfo{'description'});
-        # Limit to length of 4000 bytes (see https://www.redhat.com/archives/spacewalk-list/2012-June/msg00128.html)
-        if (length($erratainfo{'description'}) > 4000) {
-          $erratainfo{'description'} = substr($erratainfo{'description'}, 0, 4000);
-        } 
         # Add Red Hat's Copyright notice to the Notes field
         if ( defined($rhsaxml->{definitions}->{definition}->{$ovalid}->{metadata}->{advisory}->{rights}) ) {
           $erratainfo{'notes'}  = "The description and CVE numbers has been taken from Red Hat OVAL definitions.\n\n";
@@ -1045,6 +1039,13 @@ foreach my $advid (sort(keys(%{$xml}))) {
         }
       }
  
+    }
+    
+    # Remove Umlauts -- API throws errors if they are included
+    $erratainfo{'description'} = unidecode($erratainfo{'description'});
+    # Limit to length of 4000 bytes (see https://www.redhat.com/archives/spacewalk-list/2012-June/msg00128.html)
+    if (length($erratainfo{'description'}) >= 4000) {
+       $erratainfo{'description'} = substr($erratainfo{'description'}, 0, 4000);
     }
 
     if ($opt_get_from_rhn && !$opt_redhat) {
