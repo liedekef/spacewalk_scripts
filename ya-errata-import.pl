@@ -400,6 +400,14 @@ sub parse_archivedir() {
 		(my $advid = $subject) =~ s/(.*?) .*/$1/;
 		(my $synopsis = $subject) =~ s/.*? (.*)/$1/;
 		(my $os_release = $subject) =~ s/.* (\d+) .*/$1/;
+		
+		if ($os_release =~ /\D/ && $subject =~ /xen/i) {
+                   # OS release is not an integer, this happens for Xen updates
+                   # so we just set it to the OS release, the package details will later point
+                   # out if the advisory can be applied or not
+                   $os_release = $opt_os_version;
+                }
+
 		if ($os_release != $opt_os_version) {
 			next;
 		}
@@ -467,6 +475,7 @@ sub rhn_get_keywords($$$) {
 	return $keywords;
     }
 }
+
 sub rhn_get_bugs($$$$) {
     my ($client,$sessionid,$advisory_name,$bugzilla_url)=@_;
     $advisory_name =~ s/CE|SL/RH/g;
@@ -908,8 +917,14 @@ foreach my $advid (sort(keys(%{$xml}))) {
   my @channels = ();
   my @cves = ();
 
-  # Only consider CentOS errata
-  unless($advid =~ /^CE|^RH|^SL|^FEDORA-EPEL|CVE/) { &debug("Skipping $advid\n"); next; }
+  # Only consider specific errata:
+  # CE: centos
+  # RH: redhat
+  # SL: scientific linux
+  # EL: oracle enterprise linux
+  # Fedora-epel
+  # CVE
+  unless($advid =~ /^CE|^RH|^SL|^EL|^FEDORA-EPEL|CVE/) { &debug("Skipping $advid\n"); next; }
 
   # Check command line options for errata to consider
   if ($opt_security || $opt_bugfix || $opt_enhancement) {
@@ -932,9 +947,9 @@ foreach my $advid (sort(keys(%{$xml}))) {
   # Start processing
   &info("Processing $advid (".$xml->{$advid}->{'synopsis'}.")\n");
 
-  # Generate OVAL ID for security errata
+  # Generate OVAL ID for redhat security errata
   $ovalid = "";
-  if ($advid =~ /CESA|SLSA/) {
+  if ($advid =~ /CESA|CLSA/) {
     $advid =~ /..SA-(\d+):(\d+)/;
     $ovalid = "oval:com.redhat.rhsa:def:$1".sprintf("%04d", $2);
     &debug("Processing $advid -- OVAL ID is $ovalid\n");
