@@ -308,12 +308,17 @@ sub parse_updatexml($) {
         if (defined($errata->{'references'}->{'reference'})) {
                 foreach my $reference (@{$errata->{'references'}->{'reference'}}) {
                         if ($reference->{'type'} =~ /bugzilla|cve/) {
-				my $bug;
-				$bug->{'id'}=$reference->{'id'};
-				$bug->{'summary'}=$reference->{'title'};
-				$bug->{'url'}=$reference->{'href'};
-				$bugs_found=1;
-				push(@bugs,$bug);
+                                # in spacewalk, the bug id needs to be an integer, so if not we just make a bug reference line instead
+                                if ($reference->{'id'} =~ /\D/) {
+                                        $xml->{$advid}->{'references'}.=$reference->{'href'}."\n";
+                                } else {
+                                        my $bug;
+                                        $bug->{'id'}=$reference->{'id'};
+                                        $bug->{'summary'}=$reference->{'title'};
+                                        $bug->{'url'}=$reference->{'href'};
+                                        $bugs_found=1;
+                                        push(@bugs,$bug);
+                                }
 			} else {
 		   		$xml->{$advid}->{'references'}.=$reference->{'href'}."\n";
 			}
