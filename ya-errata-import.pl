@@ -22,6 +22,7 @@
 # 20130726 - Support for spacewalk API 2.0
 # 20130818 - disable ssl cert verification for newer versions of libwww
 #          - session logout when connected to redhat
+# 20130805 - better XML parsing
 
 # Load modules
 use strict;
@@ -39,7 +40,7 @@ use Time::Local;
 #######################################################################
 
 # Version information
-my $version = "20130818";
+my $version = "20130905";
 my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13' );
 
 # Just to be sure: disable SSL certificate verification for libwww>6.0
@@ -238,14 +239,14 @@ sub parse_updatexml($) {
      die "Can't open XML Update file $update_xml_file\n";
   }
   &info("Loading XML Update file $update_xml_file...\n");
-  if (not($updatexml = XMLin($update_xml_file, ForceArray => [ 'reference' ]))) {
+  if (not($updatexml = XMLin($update_xml_file, ForceArray => [ 'reference' ], KeyAttr => [''] ))) {
     &error("Could not parse XML Update file!\n");
     exit 4;
   }
 
   &debug("XML Update file loaded successfully\n");
-  foreach my $advid (keys %{$updatexml->{'update'}}) {
-	my $errata = $updatexml->{'update'}->{$advid};
+  foreach my $errata (@{$updatexml->{'update'}}) {
+        my $advid = $errata->{'id'};
         my $errata_type;
 	if ($errata->{'type'} eq "bugfix") {
 		$errata_type="Bug Fix Advisory";
@@ -273,8 +274,7 @@ sub parse_updatexml($) {
 	}
 
 	my @packages;
-	foreach my $pkg (keys %{$errata->{'pkglist'}->{'collection'}->{'package'}}) {
-		my $pkg_info = $errata->{'pkglist'}->{'collection'}->{'package'}->{$pkg};
+        foreach my $pkg_info (@{$errata->{'pkglist'}->{'collection'}->{'package'}}) {
                 # Sometimes, there is only one package and they didn't bother to put it correctly in the XML as a subhash
                 if (ref($pkg_info) ne "HASH") {
                         $pkg_info=$errata->{'pkglist'}->{'collection'}->{'package'};
@@ -306,11 +306,10 @@ sub parse_updatexml($) {
 	my $bugs_found=0;
 	my @bugs;
         if (defined($errata->{'references'}->{'reference'})) {
-		foreach my $ref_name (keys %{$errata->{'references'}->{'reference'}}) {
-			my $reference = $errata->{'references'}->{'reference'}->{$ref_name};
-			if ($reference->{'type'} eq 'bugzilla') {
+                foreach my $reference (@{$errata->{'references'}->{'reference'}}) {
+                        if ($reference->{'type'} =~ /bugzilla|cve/) {
 				my $bug;
-				$bug->{'id'}=$ref_name;
+				$bug->{'id'}=$reference->{'id'};
 				$bug->{'summary'}=$reference->{'title'};
 				$bug->{'url'}=$reference->{'href'};
 				$bugs_found=1;
