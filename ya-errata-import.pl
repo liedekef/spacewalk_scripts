@@ -70,12 +70,13 @@ my ($xml, $rhsaxml);
 my ($session, $username, $password,$rhn_session,$rhn_username,$rhn_password);
 #my %name2channel;
 my %name2id;
+my %existing_errata;
 my ($channellist, $channel, @excludechannels);
 my ($channeldetails, $lastmodified, $trackmodified, $lastsync, $synctimestamp);
 my ($reference, %erratadetails, %erratainfo);
 my $result;
 my $undopush;
-my ($pkg, $allpkg, $pkgdetails, $package);
+my ($pkg, $pkgdetails, $package);
 my ($advisory, $ovalid);
 my $getdetails;
 my $os_variant; # One of 'C' for CentOS, 'R' for RedHat, or 'S' for Scientific
@@ -120,19 +121,19 @@ my $opt_suffix;
 ### PROCEDURES
 #######################################################################
 
-sub debug() {
+sub debug($) {
   print "DEBUG: @_" if ($opt_debug);
 }
 
-sub info() {
+sub info($) {
   print "INFO: @_" if (!$opt_quiet);
 }
 
-sub warning() {
+sub warning($) {
   print "WARNING: @_";
 }
 
-sub error() {
+sub error($) {
   print "ERROR: @_";
 }
 
@@ -175,11 +176,9 @@ sub usage() {
   print "\n";
   print "REQUIRED for OEL errata:\n";
   print "  --oel_errata\t\tPath to the unzipped updateinfo.xml file\n";
-  print "\t\t\tyou're pushing erratas in, is a redhat based channel, this just influences the name of the errata in spacewalk\n";
   print "\n";
   print "REQUIRED for SL errata:\n";
   print "  --sl_errata\t\tPath to the unzipped updateinfo.xml file\n";
-  print "\t\t\tyou're pushing erratas in, is a redhat based channel, this just influences the name of the errata in spacewalk\n";
   print "\n";
   print "OPTIONAL:\n";
   print "  --quiet\t\tSuppresses all informational messages\n";
@@ -220,7 +219,7 @@ sub usage() {
   print "\n";
 }
 
-sub uniq() {
+sub uniq(@) {
   my %all = ();
   @all{@_} = 1;
   return (keys %all);
@@ -249,13 +248,13 @@ sub parse_updatexml($) {
   if (!-r "$update_xml_file") {
      die "Can't open XML Update file $update_xml_file\n";
   }
-  &info("Loading XML Update file $update_xml_file...\n");
+  info("Loading XML Update file $update_xml_file...\n");
   if (not($updatexml = XMLin($update_xml_file, ForceArray => [ 'reference' ], KeyAttr => [''] ))) {
-    &error("Could not parse XML Update file!\n");
+    error("Could not parse XML Update file!\n");
     exit 4;
   }
 
-  &debug("XML Update file loaded successfully\n");
+  debug("XML Update file loaded successfully\n");
   foreach my $errata (@{$updatexml->{'update'}}) {
         my $advid = $errata->{'id'};
         my $errata_type;
@@ -268,9 +267,9 @@ sub parse_updatexml($) {
 	} else {
 		next;
 	}
-	my $errata_time = &to_epoch($errata->{'issued'}->{'date'});
+	my $errata_time = to_epoch($errata->{'issued'}->{'date'});
 	if (defined($opt_startfromprevious)) {
-		my $startdate=&get_previous_startdate($opt_startfromprevious);
+		my $startdate=get_previous_startdate($opt_startfromprevious);
 		if ($errata_time<to_epoch($startdate)) {
 			next;
 		}
@@ -293,11 +292,11 @@ sub parse_updatexml($) {
 		if ($pkg_info->{'arch'} ne 'src' && $pkg_info->{'filename'} !~ /src\.rpm$|debuginfo/) {
 			my $pkg_filename = $pkg_info->{'filename'};
 			push (@packages,$pkg_filename);
-			&debug("Errata $advid has package $pkg_filename\n");
+			debug("Errata $advid has package $pkg_filename\n");
 		}
 	}
         if (!@packages) {
-		&debug("Skipping $advid, no packages for the corresponding arch\n");
+		debug("Skipping $advid, no packages for the corresponding arch\n");
 		next;
 	}
 
@@ -348,25 +347,25 @@ sub parse_redhat_errata($$) {
   my $xml;
   my $rhn_erratas;
 
-  &set_proxy($opt_rhn_proxy);
+  set_proxy($opt_rhn_proxy);
   if (defined($opt_startfromprevious)) {
-     my $startdate=&get_previous_startdate($opt_startfromprevious);
-     &info("Getting erratas from date $startdate till now\n");
+     my $startdate=get_previous_startdate($opt_startfromprevious);
+     info("Getting erratas from date $startdate till now\n");
      $rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel,$startdate);
   } elsif (defined($opt_startdate) && defined($opt_enddate)) {
-     &info("Getting erratas from date $opt_startdate till $opt_enddate\n");
+     info("Getting erratas from date $opt_startdate till $opt_enddate\n");
      $rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel,$opt_startdate,$opt_enddate);
   } elsif (defined($opt_startdate)) {
-     &info("Getting erratas from date $opt_startdate till now\n");
+     info("Getting erratas from date $opt_startdate till now\n");
      $rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel,$opt_startdate);
   } else {
-     &info("Getting ALL erratas (this make take a while)\n");
+     info("Getting ALL erratas (this make take a while)\n");
      $rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel);
   }
   foreach my $errata (@$rhn_erratas) {
 	my $advid=$errata->{'errata_advisory'};
-        my $rhn_errata_details=&rhn_get_details($rhn_client,$rhn_session,$advid);
-        my @rhn_errata_packages=&rhn_get_packages($rhn_client,$rhn_session,$advid);
+        my $rhn_errata_details=rhn_get_details($rhn_client,$rhn_session,$advid);
+        my @rhn_errata_packages=rhn_get_packages($rhn_client,$rhn_session,$advid);
 
         # the Redhat API call returns errata_notes and such, spacewalk needs just "notes" and alike
 	$xml->{$advid}={};
@@ -375,15 +374,21 @@ sub parse_redhat_errata($$) {
 	$xml->{$advid}->{'type'}=$errata->{'errata_advisory_type'};
 	$xml->{$advid}->{'advisory_name'}=$errata->{'errata_advisory'};
 	$xml->{$advid}->{'product'}="RHEL Linux";
-	$xml->{$advid}->{'topic'}=$rhn_errata_details->{'errata_topic'};
-	$xml->{$advid}->{'description'}=$rhn_errata_details->{'errata_description'};
-	$xml->{$advid}->{'notes'}=$rhn_errata_details->{'errata_notes'};
 	$xml->{$advid}->{'solution'}="not available";
+	if ($rhn_errata_details) {
+		$xml->{$advid}->{'topic'}=$rhn_errata_details->{'errata_topic'};
+		$xml->{$advid}->{'description'}=$rhn_errata_details->{'errata_description'};
+		$xml->{$advid}->{'notes'}=$rhn_errata_details->{'errata_notes'};
+	} else {
+		$xml->{$advid}->{'topic'}='';
+		$xml->{$advid}->{'description'}='';
+		$xml->{$advid}->{'notes'}='';
+	}
 	#$xml->{$advid}->{'os_release'}=$os_release;
 	$xml->{$advid}->{'references'}=$rhn_errata_details->{'errata_references'};
 	$xml->{$advid}->{${opt_architecture}.'_packages'}=\@rhn_errata_packages;
   }
-  &set_proxy($opt_proxy);
+  set_proxy($opt_proxy);
   return $xml;
 }
 
@@ -417,11 +422,13 @@ sub parse_archivedir() {
 		(my $synopsis = $subject) =~ s/.*? (.*)/$1/;
 		(my $os_release = $subject) =~ s/.* (\d+) .*/$1/;
 		
+		my $centos_xen_errata=0;
 		if ($os_release =~ /\D/ && $subject =~ /xen/i) {
                    # OS release is not an integer, this happens for Xen updates
                    # so we just set it to the OS release, the package details will later point
                    # out if the advisory can be applied or not
                    $os_release = $opt_os_version;
+		   $centos_xen_errata=1;
                 }
 
 		if ($os_release != $opt_os_version) {
@@ -431,8 +438,24 @@ sub parse_archivedir() {
 		# now get the packages per architecture
 		my $i386_packages="";
 		my $x86_64_packages="";
-		($part =~ /i386:/s) && (($i386_packages = $part) =~ s/.*i386:\n(.*?)\n\n.*/$1/s);
-		($part =~ /x86_64:/s) && (($x86_64_packages = $part) =~ s/.*x86_64:\n(.*?)\n\n.*/$1/s);
+		if ($centos_xen_errata) {
+			($part =~ /I386/s) && (($i386_packages = $part) =~ s/.*I386\s*\n\-+\n(.*?)\n\n.*/$1/s);
+			($part =~ /X86_64/s) && (($x86_64_packages = $part) =~ s/.*X86_64\s*\n\-+\n(.*?)\n\n.*/$1/s);
+		} else {
+			($part =~ /i386:/s) && (($i386_packages = $part) =~ s/.*i386:\n(.*?)\n\n.*/$1/s);
+			($part =~ /x86_64:/s) && (($x86_64_packages = $part) =~ s/.*x86_64:\n(.*?)\n\n.*/$1/s);
+		}
+		# remove first empty line
+		$i386_packages =~ s/^\n//;
+		$x86_64_packages =~ s/^\n//;
+		# remove emtpy lines
+		$i386_packages =~ s/\n\s*\n/\n/g;
+		$x86_64_packages =~ s/\n\s*\n/\n/g;
+		# remove last empty line
+		$i386_packages =~ s/\n\s*$//;
+		$x86_64_packages =~ s/\n\s*$//;
+		debug("$advid i386 packages info found:\n$i386_packages\n");
+		debug("$advid x86_64 packages info found:\n$x86_64_packages\n");
 		my @i386_packages = split(/\n/s,$i386_packages);
 		my @x86_64_packages = split(/\n/s,$x86_64_packages);
 		# remove the checksum info
@@ -462,6 +485,10 @@ sub parse_archivedir() {
 		# depending on the value off opt_acrhitecture, one of the following 2 will be used
 		$xml->{$advid}->{'i386_packages'}=\@i386_packages;
 		$xml->{$advid}->{'x86_64_packages'}=\@x86_64_packages;
+		# the next is just to be able to skip looking for xen errata in rhn, when that option is choosen
+		if ($centos_xen_errata) {
+			$xml->{$advid}->{'centos_xen_errata'}=1;
+		}
 	}
   }
   return $xml;
@@ -476,8 +503,13 @@ sub channel_get_details($$$) {
 sub rhn_get_details($$$) {
     my ($client,$sessionid,$advisory_name)=@_;
     $advisory_name =~ s/CE|SL/RH/g;
-    my $details=$client->call('errata.getDetails',$sessionid,$advisory_name);
-    return $details;
+    my $details;
+    eval {$details = $client->call('errata.getDetails', $session, $advisory_name)};
+    if ($@) {
+	return 0;
+    } else {
+        return $details;
+    }
 }
 
 sub rhn_get_keywords($$$) {
@@ -650,75 +682,75 @@ my $getopt = GetOptions( 'server=s'		=> \$opt_server,
 
 # Check for arguments
 if ( defined($opt_help) ) {
-  &usage;
+  usage;
   exit 1;
 }
 
 if ( not(defined($opt_server)) || not(defined($opt_channel)) ) {
-  &usage;
+  usage;
   exit 1;
 }
 
 #if ( not(defined($opt_erratadir)) && !$opt_redhat ) {
 if ( !$opt_redhat && !defined($opt_erratadir) && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && !defined($opt_sl_erratafile)) {
-  &usage;
+  usage;
   exit 1;
 }
 if (defined($opt_erratadir) && !$opt_redhat && not(-d $opt_erratadir)) {
   # Do we have a proper errata dir?
-  &error("$opt_erratadir is not a directory!\n");
+  error("$opt_erratadir is not a directory!\n");
   exit 1;
 }
 
 if (!$opt_os_version) {
-  &error("option 'os-version' must be defined!\n");
+  error("option 'os-version' must be defined!\n");
   exit 1;
 }
 
 # check the architecture
 if (defined($opt_architecture) && $opt_architecture ne "i386" && $opt_architecture ne "x86_64") {
-  &error("Architecture is not correctly set, please use 'i386' or 'x86_64' for values!\n");
+  error("Architecture is not correctly set, please use 'i386' or 'x86_64' for values!\n");
   exit 1;
 } elsif (!defined($opt_architecture)) {
-  &info("Architecture is not specified, will try to determine it based on the channel properties of '$opt_channel'\n");
+  info("Architecture is not specified, will try to determine it based on the channel properties of '$opt_channel'\n");
 }
 
 if ($opt_redhat && !defined($opt_redhat_channel) && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && !defined($opt_sl_erratafile)) {
-  &info("\nno redhat channel specified, assuming the name '$opt_channel'\n\n");
+  info("\nno redhat channel specified, assuming the name '$opt_channel'\n\n");
   $opt_redhat_channel=$opt_channel;
 }
 
 # Set the OS variant
 if ($opt_oel_erratafile) {
    $os_variant=":O";
-   &info("Setting the OS variant to OEL, if this is wrong please remove the --oel_errata option\n");
+   info("Setting the OS variant to OEL, if this is wrong please remove the --oel_errata option\n");
 } elsif ($opt_sl_erratafile) {
    $os_variant=":S";
-   &info("Setting the OS variant to Scientific, if this is wrong please remove the --sl_errata option\n");
+   info("Setting the OS variant to Scientific, if this is wrong please remove the --sl_errata option\n");
 } elsif ($opt_redhat) {
    $os_variant=":R";
-   &info("Setting the OS variant to Redhat, if this is wrong please remove the --redhat option\n");
+   info("Setting the OS variant to Redhat, if this is wrong please remove the --redhat option\n");
 } else {
    $os_variant=":C";
-   &info("Setting the OS variant to CentOS, if this is wrong please add the --redhat option\n");
+   info("Setting the OS variant to CentOS, if this is wrong please add the --redhat option\n");
 }
 
 # Output $version string in debug mode
-&debug("Version is $version\n");
+debug("Version is $version\n");
 
 #############################
 # Initialize API connection #
 #############################
-&set_proxy($opt_proxy);
+set_proxy($opt_proxy);
 $client = new Frontier::Client(url => "http://$opt_server/rpc/api");
 
 #########################################
 # Get the API version we are talking to #
 #########################################
 if ($apiversion = $client->call('api.get_version')) {
-  &info("Server is running API version $apiversion\n");
+  info("Server is running API version $apiversion\n");
 } else {
-  &error("Could not determine API version on server\n");
+  error("Could not determine API version on server\n");
   exit 1;
 }
 
@@ -727,14 +759,14 @@ if ($apiversion = $client->call('api.get_version')) {
 #####################################
 foreach (@supportedapi) {
   if ($apiversion eq $_) {
-    &info("API version is supported\n");
+    info("API version is supported\n");
     $apisupport = 1;
   }
 }
 
 # In case we found an unsupported API
 if (not($apisupport)) {
-  &error("Your API version ($apiversion) is not supported. Try upgrading this script.\n");
+  error("Your API version ($apiversion) is not supported. Try upgrading this script.\n");
   exit 2;
 }
 
@@ -764,15 +796,15 @@ if (defined($opt_spacewalk_pwd)) {
 
 $session = $client->call('auth.login', $username, $password);
 if ($session =~ /^\w+$/) {
-  &info("Authentication successful\n");
+  info("Authentication successful\n");
 } else {
-  &error("Authentication FAILED!\n");
+  error("Authentication FAILED!\n");
   exit 3;
 } 
 
 # For RedHat: connect to RHN
 if ($opt_get_from_rhn || ($opt_redhat && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && !defined($opt_sl_erratafile))) {
-   &set_proxy($opt_rhn_proxy);
+   set_proxy($opt_rhn_proxy);
    if (defined($opt_rhn_user)) {
       $rhn_username = $opt_rhn_user;
    } elsif (defined($ENV{'RHN_USER'})) {
@@ -795,7 +827,7 @@ if ($opt_get_from_rhn || ($opt_redhat && !defined($opt_epel_erratafile) && !defi
    }
    $rhn_client = new Frontier::Client(url => "https://$opt_rhn_server/rpc/api");
    $rhn_session = $rhn_client->call('auth.login', $rhn_username, $rhn_password);
-   &set_proxy($opt_proxy);
+   set_proxy($opt_proxy);
 }
 
 ##########################
@@ -805,16 +837,16 @@ if ($opt_publish) {
   # Publishing Errata requires Satellite or Org Administrator role
   my $userroles = $client->call('user.list_roles', $session, $username);  
 
-  &debug("User is assigned these roles: ".join(' ', @{$userroles})."\n");
+  debug("User is assigned these roles: ".join(' ', @{$userroles})."\n");
 
   if ( (join(' ', @{$userroles}) =~ /satellite_admin/) || 
        (join(' ', @{$userroles}) =~ /org_admin/) ||
        (join(' ', @{$userroles}) =~ /channel_admin/) ) {
-    &info("User has administrator access to this server\n");
+    info("User has administrator access to this server\n");
   } else {
-    &error("User does NOT have administrator access\n");
-    &error("You have set --publish but your user has insufficient access rights\n");
-    &error("Either use an account that is Satellite/Org/Channel Administator or omit --publish\n");
+    error("User does NOT have administrator access\n");
+    error("You have set --publish but your user has insufficient access rights\n");
+    error("Either use an account that is Satellite/Org/Channel Administator or omit --publish\n");
     exit 1;
   }
 }
@@ -822,52 +854,50 @@ if ($opt_publish) {
 ########################
 # Get server inventory #
 ########################
-&info("Checking if channel $opt_channel exists on $opt_server\n");
+info("Checking if channel $opt_channel exists on $opt_server\n");
 
 # Get a list of all channels
 $channellist = $client->call('channel.list_all_channels', $session);
 
-#if (scalar(@includechannels) > 0) { &debug("--include-channels set: ".join(" ", @includechannels)."\n"); }
-#if (scalar(@excludechannels) > 0) { &debug("--exclude-channels set: ".join(" ", @excludechannels)."\n"); }
+#if (scalar(@includechannels) > 0) { debug("--include-channels set: ".join(" ", @includechannels)."\n"); }
+#if (scalar(@excludechannels) > 0) { debug("--exclude-channels set: ".join(" ", @excludechannels)."\n"); }
 
 # Go through each channel 
 my $found=0;
 foreach $channel (sort(@$channellist)) {
    # Check if channel is included
-   if ($channel->{'label'} ne $opt_channel) {
-#      &debug("Channel $channel->{'name'} ($channel->{'label'}) is NOT included\n");
-      next;
+   if ($channel->{'label'} eq $opt_channel) {
+      $found=1;
+      last;
    }
-   $found=1;
 }
 
 if (!$found) {
-  &error("Could not find the specified channel $opt_channel in $opt_server!\n");
+  error("Could not find the specified channel $opt_channel in $opt_server!\n");
   exit 4;
-} else {
+}
 
-  &info("Determining architecture for channel $opt_channel\n");
-  my $channel_details = channel_get_details($client, $session, $opt_channel);
-  my $channel_architecture = $channel_details ->{'arch_name'};
-  if (!defined($opt_architecture)) {
-	  if ($channel_architecture eq "IA-32") {
-		  $opt_architecture = "i386";
-		  &info("Detected architecture '$opt_architecture' for channel '$opt_channel'\n");
-	  } elsif ($channel_architecture eq "x86_64") {
-		  $opt_architecture = "x86_64";
-		  &info("Detected architecture '$opt_architecture' for channel '$opt_channel'\n");
-	  } else {
-		  &error("Unsupported architecture '$channel_architecture' for channel '$opt_channel'\n");
-		  exit 1;
-	  }
-  }
+info("Determining architecture for channel $opt_channel\n");
+my $channel_details = channel_get_details($client, $session, $opt_channel);
+my $channel_architecture = $channel_details ->{'arch_name'};
+if (!defined($opt_architecture)) {
+	if ($channel_architecture eq "IA-32") {
+		$opt_architecture = "i386";
+		info("Detected architecture '$opt_architecture' for channel '$opt_channel'\n");
+	} elsif ($channel_architecture eq "x86_64") {
+		$opt_architecture = "x86_64";
+		info("Detected architecture '$opt_architecture' for channel '$opt_channel'\n");
+	} else {
+		error("Unsupported architecture '$channel_architecture' for channel '$opt_channel'\n");
+		exit 1;
+	}
+}
 
-  &info("Scanning channel $opt_channel\n");
-  # Get all packages in current channel
-  $allpkg = $client->call('channel.software.list_all_packages', $session, $opt_channel);
-  # Go through each package
-  foreach $pkg (@$allpkg) {
-
+info("Listing all packages in $opt_channel\n");
+# Get all packages in current channel
+my $allpkg = $client->call('channel.software.list_all_packages', $session, $opt_channel);
+# Go through each package
+foreach my $pkg (@$allpkg) {
     # Get the details of the current package, for the filename (the filename is referenced in the erratum)
     # Edit: commented this, it takes way too long, we'll reconstruct the package filename ourselves
     # $pkgdetails = $client->call('packages.get_details', $session, $pkg->{id});
@@ -885,42 +915,48 @@ if (!$found) {
     #}
     my $filename="$name-$version-$release.$arch_label.rpm";
 
-    &debug("Package ID $pkg->{'id'} is $filename\n");
+    debug("Package ID $pkg->{'id'} is $filename\n");
     $name2id{$filename} = $pkg->{'id'};
-  }
+}
+
+info("Listing all packages in $opt_channel\n");
+my $allerrata = $client->call('channel.software.listErrata', $session, $opt_channel);
+foreach my $errata (@$allerrata) {
+    my $name=$errata->{"advisory_name"};
+    $existing_errata{$name} = 1;
 }
 
 ############################
 # Read the XML errata file #
 ############################
-&info("Loading errata\n");
+info("Loading errata\n");
 if ($opt_epel_erratafile) {
-  $xml = &parse_updatexml($opt_epel_erratafile);
+  $xml = parse_updatexml($opt_epel_erratafile);
 } elsif ($opt_oel_erratafile) {
-  $xml = &parse_updatexml($opt_oel_erratafile);
+  $xml = parse_updatexml($opt_oel_erratafile);
 } elsif ($opt_sl_erratafile) {
-  $xml = &parse_updatexml($opt_sl_erratafile);
+  $xml = parse_updatexml($opt_sl_erratafile);
 } elsif ($opt_redhat) {
-  $xml = &parse_redhat_errata($rhn_client,$rhn_session);
+  $xml = parse_redhat_errata($rhn_client,$rhn_session);
 } else {
-  $xml = &parse_archivedir();
+  $xml = parse_archivedir();
 }
 
 if (!defined($xml)) {
-  &info("No errata found, nothing will happen\n");
+  info("No errata found, nothing will happen\n");
 }
 
 ##################################
 # Load optional Red Hat OVAL XML #
 ##################################
 if (-f $opt_rhsaovalfile) {
-  &info("Loading Red Hat OVAL XML\n");
+  info("Loading Red Hat OVAL XML\n");
   if (not($rhsaxml = XMLin($opt_rhsaovalfile))) {
-    &error("Could not parse Red Hat OVAL file!\n");
+    error("Could not parse Red Hat OVAL file!\n");
     exit 4;
   }
 
-  &debug("Red Hat OVAL XML loaded successfully\n");
+  debug("Red Hat OVAL XML loaded successfully\n");
 }
 
 ##############################
@@ -932,6 +968,7 @@ foreach my $advid (sort(keys(%{$xml}))) {
   my @packages = ();
   my @channels = ();
   my @cves = ();
+  my $centos_xen_errata=0;
 
   # Only consider specific errata:
   # CE: centos
@@ -940,35 +977,39 @@ foreach my $advid (sort(keys(%{$xml}))) {
   # EL: oracle enterprise linux
   # Fedora-epel
   # CVE
-  unless($advid =~ /^CE|^RH|^SL|^EL|^FEDORA-EPEL|CVE/) { &debug("Skipping $advid\n"); next; }
+  unless($advid =~ /^CE|^RH|^SL|^EL|^FEDORA-EPEL|CVE/) { debug("Skipping $advid\n"); next; }
+
+  if (defined($xml->{$advid}->{'centos_xen_errata'})) {
+     $centos_xen_errata=1;
+  }
 
   # Check command line options for errata to consider
   if ($opt_security || $opt_bugfix || $opt_enhancement) {
     if ( ($advid =~ /^..SA/) && (not($opt_security)) ) {
-      &debug("Skipping $advid. Security Errata not selected.\n");
+      debug("Skipping $advid. Security Errata not selected.\n");
       next;
     }
 
     if ( ($advid =~ /^..BA/) && (not($opt_bugfix)) ) {
-      &debug("Skipping $advid. Bugfix Errata not selected.\n");
+      debug("Skipping $advid. Bugfix Errata not selected.\n");
       next;
     }
 
     if ( ($advid =~ /^..EA/) && (not($opt_enhancement)) ) {
-      &debug("Skipping $advid. Enhancement Errata not selected.\n");
+      debug("Skipping $advid. Enhancement Errata not selected.\n");
       next;
     }
   }
 
   # Start processing
-  &info("Processing $advid (".$xml->{$advid}->{'synopsis'}.")\n");
+  info("Processing $advid (".$xml->{$advid}->{'synopsis'}.")\n");
 
   # Generate OVAL ID for redhat security errata
   $ovalid = "";
-  if ($advid =~ /CESA|CLSA/) {
+  if ($advid =~ /CESA|CLSA/ && !$centos_xen_errata) {
     $advid =~ /..SA-(\d+):(\d+)/;
     $ovalid = "oval:com.redhat.rhsa:def:$1".sprintf("%04d", $2);
-    &debug("Processing $advid -- OVAL ID is $ovalid\n");
+    debug("Processing $advid -- OVAL ID is $ovalid\n");
   }
 
   my $adv_name=$advid.$os_variant.$opt_os_version;
@@ -982,37 +1023,38 @@ foreach my $advid (sort(keys(%{$xml}))) {
   }
   
   # Check if the errata already exists
-  eval {$getdetails = $client->call('errata.get_details', $session, $adv_name)};
-  if ($@) {
+  #eval {$getdetails = $client->call('errata.get_details', $session, $adv_name)};
+  if (!defined($existing_errata{$adv_name})) {
     # Errata does not exist yet, good
+    debug("Good, errata $adv_name does not yet exist in channel $opt_channel\n");
     
     # Find package IDs mentioned in errata
     my $all_found=1;
     foreach $package ( @{$xml->{$advid}->{${opt_architecture}.'_packages'}} ) {
       if (defined($name2id{$package})) {
         # We found it, nice
-        #&debug("Package: $package -> $name2id{$package} -> $name2channel{$package} \n");
-        &debug("Package: $package -> $name2id{$package}\n");
+        #debug("Package: $package -> $name2id{$package} -> $name2channel{$package} \n");
+        debug("Package: $package -> $name2id{$package}\n");
         push(@packages, $name2id{$package});
       } else {
         # No such package, too bad
-        &debug("Package: $package not found\n");
+        debug("Package: $package not found\n");
 	$all_found=0;
       }
     }
 
     # Just in case ...
     if ($all_found) {
-        @packages = &uniq(@packages);
+        @packages = uniq(@packages);
     }
 
     # skip errata if not all packages are present
     if (!$all_found) {
-        &info("Skipping $advid since not all packages are present\n");
+        info("Skipping $advid since not all packages are present\n");
 	if (defined($xml->{$advid}->{'os_release'}) && ($xml->{$advid}->{'os_release'} != $opt_os_version)) {
-	   &info("   this is probably ok, since I think the OS version doesn't match what you wanted\n");
+	   info("   this is probably ok, since I think the OS version doesn't match what you wanted\n");
 	} else {
-	   &info("   this should be fixed by the next channel sync, or the errata is already superseded by another one\n");
+	   info("   this should be fixed by the next channel sync, or the errata is already superseded by another one\n");
 	}
 	next;
     }
@@ -1032,7 +1074,7 @@ foreach my $advid (sort(keys(%{$xml}))) {
     # Insert description from Red Hat OVAL file, if available (only for Security)
     if (defined($ovalid) && !$opt_redhat) {
       if ( defined($rhsaxml->{definitions}->{definition}->{$ovalid}->{metadata}->{description}) ) {
-        &debug("Using description from $ovalid\n");
+        debug("Using description from $ovalid\n");
         $erratainfo{'description'} = $rhsaxml->{definitions}->{definition}->{$ovalid}->{metadata}->{description};
         # Add Red Hat's Copyright notice to the Notes field
         if ( defined($rhsaxml->{definitions}->{definition}->{$ovalid}->{metadata}->{advisory}->{rights}) ) {
@@ -1054,27 +1096,32 @@ foreach my $advid (sort(keys(%{$xml}))) {
     
     if ($opt_get_from_rhn && !$opt_redhat) {
 	# this only needs to be done for CentOS , not RedHat
-        &set_proxy($opt_rhn_proxy);
-        my $rhn_errata_details=&rhn_get_details($rhn_client,$rhn_session,$advid);
-	# the Redhat API call returns errata_notes and such, spacewalk needs just "notes" and alike
-	$erratainfo{'notes'}=$rhn_errata_details->{'errata_notes'};
-	$erratainfo{'description'}=$rhn_errata_details->{'errata_description'};
-	$erratainfo{'topic'}=$rhn_errata_details->{'errata_topic'};
-	# let's replace the redhat references in the text
-        if ($os_variant eq ':O') {
-  		$erratainfo{'notes'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Oracle Enterprise Linux/gs;
-		$erratainfo{'description'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Oracle Enterprise Linux/gs;
-		$erratainfo{'topic'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Oracle Enterprise Linux/gs;
-	} elsif ($os_variant eq ':S') {
-		$erratainfo{'notes'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Scientific Linux/gs;
-                $erratainfo{'description'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Scientific Linux/gs;
-                $erratainfo{'topic'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Scientific Linux/gs;
-	} else {
-		$erratainfo{'notes'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/CentOS/gs;
-                $erratainfo{'description'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/CentOS/gs;
-                $erratainfo{'topic'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/CentOS/gs;
+	# but CentOS releases Xen errata not found in redhat, so we skip those too
+	if (!$centos_xen_errata) {
+		set_proxy($opt_rhn_proxy);
+		my $rhn_errata_details=rhn_get_details($rhn_client,$rhn_session,$advid);
+		# the Redhat API call returns errata_notes and such, spacewalk needs just "notes" and alike
+		if ($rhn_errata_details) {
+			$erratainfo{'notes'}=$rhn_errata_details->{'errata_notes'};
+			$erratainfo{'description'}=$rhn_errata_details->{'errata_description'};
+			$erratainfo{'topic'}=$rhn_errata_details->{'errata_topic'};
+		}
+		# let's replace the redhat references in the text
+		if ($os_variant eq ':O') {
+			$erratainfo{'notes'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Oracle Enterprise Linux/gs;
+			$erratainfo{'description'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Oracle Enterprise Linux/gs;
+			$erratainfo{'topic'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Oracle Enterprise Linux/gs;
+		} elsif ($os_variant eq ':S') {
+			$erratainfo{'notes'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Scientific Linux/gs;
+			$erratainfo{'description'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Scientific Linux/gs;
+			$erratainfo{'topic'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/Scientific Linux/gs;
+		} else {
+			$erratainfo{'notes'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/CentOS/gs;
+			$erratainfo{'description'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/CentOS/gs;
+			$erratainfo{'topic'} =~ s/Red\s?Hat\s?Enterprise\s?Linux/CentOS/gs;
+		}
+		set_proxy($opt_proxy);
 	}
-        &set_proxy($opt_proxy);
     }
 
     $erratainfo{'description'} = api_sanitize($erratainfo{'description'});
@@ -1084,11 +1131,13 @@ foreach my $advid (sort(keys(%{$xml}))) {
     my (@keywords,@bugs);
     if (!defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && !defined($opt_sl_erratafile) && ($opt_get_from_rhn || $opt_redhat)) {
 	# for both CentOS and RedHat
-        &set_proxy($opt_rhn_proxy);
-        @keywords=&rhn_get_keywords($rhn_client,$rhn_session,$advid);
-        @bugs=&rhn_get_bugs($rhn_client,$rhn_session,$advid,$opt_bugzilla_url);
-        @cves=&rhn_get_cves($rhn_client,$rhn_session,$advid);
-        &set_proxy($opt_proxy);
+	if (!$centos_xen_errata) {
+		set_proxy($opt_rhn_proxy);
+		@keywords=rhn_get_keywords($rhn_client,$rhn_session,$advid);
+		@bugs=rhn_get_bugs($rhn_client,$rhn_session,$advid,$opt_bugzilla_url);
+		@cves=rhn_get_cves($rhn_client,$rhn_session,$advid);
+		set_proxy($opt_proxy);
+	}
     }
     if (defined($opt_epel_erratafile) && defined($xml->{$advid}->{'bugs'})) {
 	@bugs=@{$xml->{$advid}->{'bugs'}};
@@ -1102,35 +1151,35 @@ foreach my $advid (sort(keys(%{$xml}))) {
 
     if (@packages >= 1) {
       # If there is at least one matching package in the errata
-      &info("Creating errata $adv_name for $advid ($xml->{$advid}->{'synopsis'}) (All ".($#packages +1)." packages present in the corresponding channel)\n");
+      info("Creating errata $adv_name for $advid ($xml->{$advid}->{'synopsis'}) (All ".($#packages +1)." packages present in the corresponding channel)\n");
       if ($opt_publish) {
         eval {$result = $client->call('errata.create', $session, \%erratainfo, \@bugs, \@keywords, \@packages, $client->boolean(1), [ $opt_channel ]);}
       } else {
         eval {$result = $client->call('errata.create', $session, \%erratainfo, \@bugs, \@keywords, \@packages, $client->boolean(0), [ $opt_channel ]);}
       }
       if ($@) {
-        &warning("An error occurred while creating the errata $advid\n");
+        warning("An error occurred while creating the errata $advid\n");
         if ($@ =~ /unique constraint \(SPACEWALK_MAIN.RHN_CNP_CID_NID_UQ\) violated/) {
-           &warning("Since it's a bogus 'unique constraint (SPACEWALK_MAIN.RHN_CNP_CID_NID_UQ) violated' error, we can safely ignore it.\n");
+           warning("Since it's a bogus 'unique constraint (SPACEWALK_MAIN.RHN_CNP_CID_NID_UQ) violated' error, we can safely ignore it.\n");
         } else {
-           &warning("The error is $@\n");
+           warning("The error is $@\n");
         }
       }
 
       if (@cves >= 1) {
-            &info("Adding CVE information to created $adv_name\n");
-            &debug("CVEs in $advid: ".join(',', @cves)."\n");
+            info("Adding CVE information to created $adv_name\n");
+            debug("CVEs in $advid: ".join(',', @cves)."\n");
             %erratadetails = ( "cves" => [ @cves ] );
             eval{$result = $client->call('errata.set_details', $session, $adv_name, \%erratadetails);}
       }
 
     } else {
       # There is no related package so there is no errata created
-      &info("Skipping errata $advid ($xml->{$advid}->{'synopsis'}) -- No packages found\n");
+      info("Skipping errata $advid ($xml->{$advid}->{'synopsis'}) -- No packages found\n");
     }
 
   } else {
-    &info("Errata for $advid already exists\n");
+    info("Errata for $advid already exists\n");
   }
 }
 
@@ -1139,8 +1188,8 @@ $client->call('auth.logout', $session);
 
 # if connected to redhat: clean it up as well
 if ($opt_get_from_rhn || ($opt_redhat && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && !defined($opt_sl_erratafile))) {
-        &set_proxy($opt_rhn_proxy);
+        set_proxy($opt_rhn_proxy);
 	$rhn_client->call('auth.logout', $rhn_session);
-        &set_proxy($opt_proxy);
+        set_proxy($opt_proxy);
 }
 
