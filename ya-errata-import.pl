@@ -22,7 +22,8 @@
 # 20130726 - Support for spacewalk API 2.0
 # 20130818 - disable ssl cert verification for newer versions of libwww
 #          - session logout when connected to redhat
-# 20130805 - better XML parsing
+# 20130905 - better XML parsing
+# 20130911 - CentOS Xen errata parsing corrected
 
 # Load modules
 use strict;
@@ -40,7 +41,7 @@ use Time::Local;
 #######################################################################
 
 # Version information
-my $version = "20130905";
+my $version = "20130911";
 my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13' );
 
 # Just to be sure: disable SSL certificate verification for libwww>6.0
