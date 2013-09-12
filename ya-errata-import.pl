@@ -376,7 +376,7 @@ sub parse_redhat_errata($$) {
 	$xml->{$advid}->{'advisory_name'}=$errata->{'errata_advisory'};
 	$xml->{$advid}->{'product'}="RHEL Linux";
 	$xml->{$advid}->{'solution'}="not available";
-	if ($rhn_errata_details) {
+	if (ref($rhn_errata_details) eq "HASH") {
 		$xml->{$advid}->{'topic'}=$rhn_errata_details->{'errata_topic'};
 		$xml->{$advid}->{'description'}=$rhn_errata_details->{'errata_description'};
 		$xml->{$advid}->{'notes'}=$rhn_errata_details->{'errata_notes'};
@@ -1102,7 +1102,7 @@ foreach my $advid (sort(keys(%{$xml}))) {
 		set_proxy($opt_rhn_proxy);
 		my $rhn_errata_details=rhn_get_details($rhn_client,$rhn_session,$advid);
 		# the Redhat API call returns errata_notes and such, spacewalk needs just "notes" and alike
-		if ($rhn_errata_details) {
+		if (ref($rhn_errata_details) eq "HASH") {
 			$erratainfo{'notes'}=$rhn_errata_details->{'errata_notes'};
 			$erratainfo{'description'}=$rhn_errata_details->{'errata_description'};
 			$erratainfo{'topic'}=$rhn_errata_details->{'errata_topic'};
