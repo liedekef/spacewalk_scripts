@@ -41,7 +41,7 @@ use Time::Local;
 #######################################################################
 
 # Version information
-my $version = "20130911";
+my $version = "20130912";
 my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13' );
 
 # Just to be sure: disable SSL certificate verification for libwww>6.0
@@ -98,6 +98,7 @@ my $opt_debug = 0;
 my $opt_quiet = 0;
 my $opt_os_version = 0;
 my $opt_help;
+my $opt_testrun;
 my $opt_autopush = 0;
 my $opt_architecture; 
 my $opt_redhat = 0;
@@ -147,7 +148,7 @@ sub usage() {
   print "Otherwise you'll be asked for it if not given but needed.\n\n";
   print "Usage: $0 --server <SERVER> --erratadir <ERRATA-DIR> \n";
   print "         --channel=<CHANNEL> --os-version <VERSION>\n";
-  print "       [ --rhsa-oval <REDHAT-OVAL-XML> | --debug |\n";
+  print "       [ --rhsa-oval <REDHAT-OVAL-XML> |\n";
 #  print "         --sync-channels | --sync-timeout=<TIMEOUT> |\n";
   print "         --bugfix | --security | --enhancement |\n";
 #  print "         --autopush ]\n";
@@ -159,7 +160,8 @@ sub usage() {
   print "         --spacewalk-user <USER> | --spacewalk-pass <PWD> |\n";
   print "         --rhn-user <RHNUSER> | --rhn-pass <RHNPWD> |\n";
   print "         --proxy <PROXY> | --bugzilla-url <URL> |\n";
-  print "         --suffix <SUFFIX> ]\n";
+  print "         --suffix <SUFFIX> |\n";
+  print "         --help | --testrun | --debug ]\n";
   print "\n";
   print "REQUIRED:\n";
   print "  --server\t\tThe hostname or IP address of your spacewalk server\n";
@@ -217,6 +219,7 @@ sub usage() {
   print "\n";
   print "DEBUGGING:\n";
   print "  --debug\t\tSet verbosity to debug (use this when reporting issues!)\n";
+  print "  --testrun\t\tWill print the errata details that would be created, but will not create anything in spacewalk\n";
   print "\n";
 }
 
@@ -352,16 +355,19 @@ sub parse_redhat_errata($$) {
   if (defined($opt_startfromprevious)) {
      my $startdate=get_previous_startdate($opt_startfromprevious);
      info("Getting erratas from date $startdate till now\n");
-     $rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel,$startdate);
+     eval {$rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel,$startdate)};
   } elsif (defined($opt_startdate) && defined($opt_enddate)) {
      info("Getting erratas from date $opt_startdate till $opt_enddate\n");
-     $rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel,$opt_startdate,$opt_enddate);
+     eval {$rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel,$opt_startdate,$opt_enddate)};
   } elsif (defined($opt_startdate)) {
      info("Getting erratas from date $opt_startdate till now\n");
-     $rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel,$opt_startdate);
+     eval {$rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel,$opt_startdate)};
   } else {
      info("Getting ALL erratas (this make take a while)\n");
-     $rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel);
+     eval {$rhn_erratas = $client->call('channel.software.listErrata',$sessionid,$opt_redhat_channel)};
+  }
+  if ($@) {
+	  warning ("channel.software.listErrata returned an error: $@\n");
   }
   foreach my $errata (@$rhn_erratas) {
 	my $advid=$errata->{'errata_advisory'};
@@ -505,8 +511,9 @@ sub rhn_get_details($$$) {
     my ($client,$sessionid,$advisory_name)=@_;
     $advisory_name =~ s/CE|SL/RH/g;
     my $details;
-    eval {$details = $client->call('errata.getDetails', $session, $advisory_name)};
+    eval {$details = $client->call('errata.getDetails', $sessionid, $advisory_name)};
     if ($@) {
+        warning ("rhn_get_details returned an error: $@\n");
 	return 0;
     } else {
         return $details;
@@ -656,6 +663,7 @@ my $getopt = GetOptions( 'server=s'		=> \$opt_server,
 		      'security'		=> \$opt_security,
 		      'bugfix'			=> \$opt_bugfix,
 		      'help'			=> \$opt_help,
+		      'testrun'			=> \$opt_testrun,
 		      'architecture=s'		=> \$opt_architecture,
 		      'enhancement'		=> \$opt_enhancement,
                       'sync-channels'		=> \$opt_syncchannels,
@@ -717,7 +725,7 @@ if (defined($opt_architecture) && $opt_architecture ne "i386" && $opt_architectu
 }
 
 if ($opt_redhat && !defined($opt_redhat_channel) && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && !defined($opt_sl_erratafile)) {
-  info("\nno redhat channel specified, assuming the name '$opt_channel'\n\n");
+  info("No redhat channel specified, assuming the name '$opt_channel'\n\n");
   $opt_redhat_channel=$opt_channel;
 }
 
@@ -803,7 +811,9 @@ if ($session =~ /^\w+$/) {
   exit 3;
 } 
 
-# For RedHat: connect to RHN
+##############################
+# For RedHat: connect to RHN #
+##############################
 if ($opt_get_from_rhn || ($opt_redhat && !defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && !defined($opt_sl_erratafile))) {
    set_proxy($opt_rhn_proxy);
    if (defined($opt_rhn_user)) {
@@ -827,7 +837,14 @@ if ($opt_get_from_rhn || ($opt_redhat && !defined($opt_epel_erratafile) && !defi
       print "\n";
    }
    $rhn_client = new Frontier::Client(url => "https://$opt_rhn_server/rpc/api");
-   $rhn_session = $rhn_client->call('auth.login', $rhn_username, $rhn_password);
+   eval {$rhn_session = $rhn_client->call('auth.login', $rhn_username, $rhn_password)};
+   if ($@) {
+      error("Couldn't log in to redhat: $@\n");
+      # clean up our spacewalk session and exit
+      set_proxy($opt_proxy);
+      $client->call('auth.logout', $session);
+      exit 3;
+   }
    set_proxy($opt_proxy);
 }
 
@@ -920,7 +937,7 @@ foreach my $pkg (@$allpkg) {
     $name2id{$filename} = $pkg->{'id'};
 }
 
-info("Listing all packages in $opt_channel\n");
+info("Listing all errata in $opt_channel\n");
 my $allerrata = $client->call('channel.software.listErrata', $session, $opt_channel);
 foreach my $errata (@$allerrata) {
     my $name=$errata->{"advisory_name"};
@@ -1102,7 +1119,7 @@ foreach my $advid (sort(keys(%{$xml}))) {
 		set_proxy($opt_rhn_proxy);
 		my $rhn_errata_details=rhn_get_details($rhn_client,$rhn_session,$advid);
 		# the Redhat API call returns errata_notes and such, spacewalk needs just "notes" and alike
-		if (ref($rhn_errata_details) eq "HASH") {
+                if (ref($rhn_errata_details) eq "HASH") {
 			$erratainfo{'notes'}=$rhn_errata_details->{'errata_notes'};
 			$erratainfo{'description'}=$rhn_errata_details->{'errata_description'};
 			$erratainfo{'topic'}=$rhn_errata_details->{'errata_topic'};
@@ -1153,25 +1170,33 @@ foreach my $advid (sort(keys(%{$xml}))) {
     if (@packages >= 1) {
       # If there is at least one matching package in the errata
       info("Creating errata $adv_name for $advid ($xml->{$advid}->{'synopsis'}) (All ".($#packages +1)." packages present in the corresponding channel)\n");
-      if ($opt_publish) {
-        eval {$result = $client->call('errata.create', $session, \%erratainfo, \@bugs, \@keywords, \@packages, $client->boolean(1), [ $opt_channel ]);}
+      if ($opt_testrun) {
+	      print "Dump of errata that would be created: \n".Dumper(%erratainfo).Dumper(@packages)."\n";
       } else {
-        eval {$result = $client->call('errata.create', $session, \%erratainfo, \@bugs, \@keywords, \@packages, $client->boolean(0), [ $opt_channel ]);}
-      }
-      if ($@) {
-        warning("An error occurred while creating the errata $advid\n");
-        if ($@ =~ /unique constraint \(SPACEWALK_MAIN.RHN_CNP_CID_NID_UQ\) violated/) {
-           warning("Since it's a bogus 'unique constraint (SPACEWALK_MAIN.RHN_CNP_CID_NID_UQ) violated' error, we can safely ignore it.\n");
-        } else {
-           warning("The error is $@\n");
-        }
+	      if ($opt_publish) {
+		      eval {$result = $client->call('errata.create', $session, \%erratainfo, \@bugs, \@keywords, \@packages, $client->boolean(1), [ $opt_channel ]);}
+	      } else {
+		      eval {$result = $client->call('errata.create', $session, \%erratainfo, \@bugs, \@keywords, \@packages, $client->boolean(0), [ $opt_channel ]);}
+	      }
+	      if ($@) {
+		      warning("An error occurred while creating the errata $advid\n");
+		      if ($@ =~ /unique constraint \(SPACEWALK_MAIN.RHN_CNP_CID_NID_UQ\) violated/) {
+			      warning("Since it's a bogus 'unique constraint (SPACEWALK_MAIN.RHN_CNP_CID_NID_UQ) violated' error, we can safely ignore it.\n");
+		      } else {
+			      warning("The error is $@\n");
+		      }
+	      }
       }
 
       if (@cves >= 1) {
             info("Adding CVE information to created $adv_name\n");
             debug("CVEs in $advid: ".join(',', @cves)."\n");
             %erratadetails = ( "cves" => [ @cves ] );
-            eval{$result = $client->call('errata.set_details', $session, $adv_name, \%erratadetails);}
+	    if ($opt_testrun) {
+		    print "Dump of errata CVE details: \n".Dumper(%erratadetails)."\n";
+	    } else {
+		    eval{$result = $client->call('errata.set_details', $session, $adv_name, \%erratadetails);}
+	    }
       }
 
     } else {
