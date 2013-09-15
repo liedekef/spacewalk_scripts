@@ -1,6 +1,6 @@
-ya-errata-import is a new script to import EPEL, CentOS or RedHat errata into
-spacewalk. I created this to solve most of my frustrations with
-existing errata import scripts:
+ya-errata-import is a new script to import EPEL, CentOS, RedHat, Scientific
+Linux and Oracle Linux errata into spacewalk. I created this to solve most
+of my frustrations with existing errata import scripts:
 - we have redhat and centos packages in spacewalk, both can have the same
   package names, which would result in redhat packages being pushed in centos
   channels because of the errata create (and thus everything fails)
