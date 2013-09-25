@@ -24,6 +24,8 @@
 #          - session logout when connected to redhat
 # 20130905 - better XML parsing
 # 20130911 - CentOS Xen errata parsing corrected
+# 20130925 - Catch a hashref error
+#          - some better debug output
 
 # Load modules
 use strict;
@@ -41,7 +43,7 @@ use Time::Local;
 #######################################################################
 
 # Version information
-my $version = "20130912";
+my $version = "20130925";
 my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13' );
 
 # Just to be sure: disable SSL certificate verification for libwww>6.0
@@ -253,7 +255,7 @@ sub parse_updatexml($) {
      die "Can't open XML Update file $update_xml_file\n";
   }
   info("Loading XML Update file $update_xml_file...\n");
-  if (not($updatexml = XMLin($update_xml_file, ForceArray => [ 'reference' ], KeyAttr => [''] ))) {
+  if (not($updatexml = XMLin($update_xml_file, ForceArray => [ 'reference', 'package' ], KeyAttr => [''] ))) {
     error("Could not parse XML Update file!\n");
     exit 4;
   }
@@ -758,9 +760,9 @@ $client = new Frontier::Client(url => "http://$opt_server/rpc/api");
 # Get the API version we are talking to #
 #########################################
 if ($apiversion = $client->call('api.get_version')) {
-  info("Server is running API version $apiversion\n");
+  info("Server $opt_server is running API version $apiversion\n");
 } else {
-  error("Could not determine API version on server\n");
+  error("Could not determine API version on server $opt_server\n");
   exit 1;
 }
 
@@ -769,7 +771,7 @@ if ($apiversion = $client->call('api.get_version')) {
 #####################################
 foreach (@supportedapi) {
   if ($apiversion eq $_) {
-    info("API version is supported\n");
+    info("Your API version is supported\n");
     $apisupport = 1;
   }
 }
@@ -804,12 +806,12 @@ if (defined($opt_spacewalk_pwd)) {
    print "\n";
 }
 
-$session = $client->call('auth.login', $username, $password);
-if ($session =~ /^\w+$/) {
-  info("Authentication successful\n");
-} else {
-  error("Authentication FAILED!\n");
+eval {$session = $client->call('auth.login', $username, $password);};
+if ($@) {
+  error("Authentication on $opt_server FAILED!\n");
   exit 3;
+} else {
+  info("Authentication on $opt_server successful\n");
 } 
 
 ##############################
@@ -846,6 +848,7 @@ if ($opt_get_from_rhn || ($opt_redhat && !defined($opt_epel_erratafile) && !defi
       $client->call('auth.logout', $session);
       exit 3;
    }
+   info("Authentication on $opt_rhn_server successful\n");
    set_proxy($opt_proxy);
 }
 
@@ -938,24 +941,28 @@ foreach my $pkg (@$allpkg) {
     $name2id{$filename} = $pkg->{'id'};
 }
 
-info("Listing all errata in $opt_channel\n");
+info("Listing all errata in $opt_channel on $opt_server\n");
 my $allerrata = $client->call('channel.software.listErrata', $session, $opt_channel);
 foreach my $errata (@$allerrata) {
     my $name=$errata->{"advisory_name"};
     $existing_errata{$name} = 1;
+    debug("Found errata $name\n");
 }
 
 ############################
 # Read the XML errata file #
 ############################
-info("Loading errata\n");
 if ($opt_epel_erratafile) {
+  info("Loading errata from $opt_epel_erratafile\n");
   $xml = parse_updatexml($opt_epel_erratafile);
 } elsif ($opt_oel_erratafile) {
+  info("Loading errata from $opt_oel_erratafile\n");
   $xml = parse_updatexml($opt_oel_erratafile);
 } elsif ($opt_sl_erratafile) {
+  info("Loading errata from $opt_sl_erratafile\n");
   $xml = parse_updatexml($opt_sl_erratafile);
 } elsif ($opt_redhat) {
+  info("Loading errata from $opt_rhn_server\n");
   $xml = parse_redhat_errata($rhn_client,$rhn_session);
 } else {
   $xml = parse_archivedir();
