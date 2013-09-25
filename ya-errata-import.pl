@@ -386,13 +386,14 @@ sub parse_redhat_errata($$) {
 		$xml->{$advid}->{'topic'}=$rhn_errata_details->{'errata_topic'};
 		$xml->{$advid}->{'description'}=$rhn_errata_details->{'errata_description'};
 		$xml->{$advid}->{'notes'}=$rhn_errata_details->{'errata_notes'};
+		$xml->{$advid}->{'references'}=$rhn_errata_details->{'errata_references'};
 	} else {
 		$xml->{$advid}->{'topic'}='';
 		$xml->{$advid}->{'description'}='';
 		$xml->{$advid}->{'notes'}='';
+		$xml->{$advid}->{'references'}='';
 	}
 	#$xml->{$advid}->{'os_release'}=$os_release;
-	$xml->{$advid}->{'references'}=$rhn_errata_details->{'errata_references'};
 	$xml->{$advid}->{${opt_architecture}.'_packages'}=\@rhn_errata_packages;
   }
   set_proxy($opt_proxy);
