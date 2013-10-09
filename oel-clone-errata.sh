@@ -39,6 +39,6 @@ rm -f $ERRATADIR/* >/dev/null 2>&1
 . ./ya-errata-import.cfg
 
 # upload the errata to spacewalk
-/sbin/ya-errata-import.pl --oel_errata $ERRATADIR/updateinfo.xml --server $SPACEWALK --channel oel-x86_64-server-6 --os-version 6 --publish --redhat --startfromprevious twoweeks --quiet
+/sbin/ya-errata-import.pl --oel_errata $ERRATADIR/updateinfo.xml --server $SPACEWALK --channel oel-x86_64-server-5 --os-version 5 --publish --redhat --startfromprevious twoweeks --quiet
 
 rm -f $ERRATADIR/*
