@@ -26,6 +26,7 @@
 # 20130911 - CentOS Xen errata parsing corrected
 # 20130925 - Catch a hashref error
 #          - some better debug output
+# 20140108 - Catch more rhn errors
 
 # Load modules
 use strict;
@@ -43,7 +44,7 @@ use Time::Local;
 #######################################################################
 
 # Version information
-my $version = "20130925";
+my $version = "20140108";
 my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13' );
 
 # Just to be sure: disable SSL certificate verification for libwww>6.0
@@ -527,12 +528,14 @@ sub rhn_get_keywords($$$) {
     my ($client,$sessionid,$advisory_name)=@_;
     $advisory_name =~ s/CE|SL/RH/g;
     #my @keywords=eval($client->call('errata.listKeywords',$sessionid,$advisory_name));
-    my $keywords=$client->call('errata.listKeywords',$sessionid,$advisory_name);
-    if (wantarray) {
-        return @{$keywords};
-    } else {
-	return $keywords;
+    my $keywords;
+    my @keywords;
+    eval {$keywords=$client->call('errata.listKeywords',$sessionid,$advisory_name)};
+    if ($@) {
+        warning ("rhn_get_keywords returned an error: $@\n");
+        return @keywords;
     }
+    return @{$keywords};
 }
 
 sub rhn_get_bugs($$$$) {
@@ -542,38 +545,44 @@ sub rhn_get_bugs($$$$) {
     if ($bugzilla_url) {
         $bugzilla=$bugzilla_url . 'show_bug.cgi?id=';
     }
-    my $raw_bugs=$client->call('errata.bugzillaFixes',$sessionid,$advisory_name);
+    my $raw_bugs;
     my @bugs;
+    eval {$raw_bugs=$client->call('errata.bugzillaFixes',$sessionid,$advisory_name)};
+    if ($@) {
+        warning ("rhn_get_bugs returned an error: $@\n");
+        return @bugs;
+    }
     foreach my $key (keys %{$raw_bugs}) {
         my $bug= {
-            'id'=>$key,
-            'summary'=>$raw_bugs->{$key},
-            'url'=>''
+           'id'=>$key,
+           'summary'=>$raw_bugs->{$key},
+           'url'=>''
         };
         if ($bugzilla) {
-            $bug->{'url'}=$bugzilla . $key;
+           $bug->{'url'}=$bugzilla . $key;
         }
         push(@bugs,$bug);
     }
-    if (wantarray) {
-        return @bugs;
-    } else {
-	return \@bugs;
-    }
+    return @bugs;
 }
 
 sub rhn_get_packages($$$) {
     my ($client,$sessionid,$advisory_name)=@_;
     $advisory_name =~ s/CE|SL/RH/g;
-    my $packages=$client->call('errata.listPackages',$sessionid,$advisory_name);
+    my $packages;
     my @packages;
+    eval { $packages=$client->call('errata.listPackages',$sessionid,$advisory_name)};
+    if ($@) {
+        warning ("rhn_get_packages returned an error: $@\n");
+	return @packages;
+    }
     foreach my $pkg (@$packages) {
 	my $found=0;
 	foreach my $providing_channel (@{$pkg->{'providing_channels'}}) {
-          if ((!$opt_redhat && $providing_channel eq $opt_channel) ||
-             ($opt_redhat && $providing_channel eq $opt_redhat_channel)) {
-		$found=1;
-	  }
+             if ((!$opt_redhat && $providing_channel eq $opt_channel) ||
+                ($opt_redhat && $providing_channel eq $opt_redhat_channel)) {
+		   $found=1;
+	     }
 	}
 	(!$found) && (next);
 	push(@packages,$pkg->{'package_file'});
@@ -584,11 +593,14 @@ sub rhn_get_packages($$$) {
 sub rhn_get_cves($$$) {
     my ($client,$sessionid,$advisory_name)=@_;
     $advisory_name =~ s/CE|SL/RH/g;
-    my $cve=$client->call('errata.listCves',$sessionid,$advisory_name);
-    if (wantarray) {
-        return @{$cve};
+    my $cve;
+    my @cve;
+    eval {$cve=$client->call('errata.listCves',$sessionid,$advisory_name)};
+    if ($@) {
+        warning ("rhn_get_cves returned an error: $@\n");
+        return @cve;
     }
-    else{return $cve;}
+    return @{$cve};
 }
 
 sub get_previous_startdate($) {
@@ -1120,6 +1132,7 @@ foreach my $advid (sort(keys(%{$xml}))) {
  
     }
     
+    my $skip_advid_in_rhn=0;
     if ($opt_get_from_rhn && !$opt_redhat) {
 	# this only needs to be done for CentOS , not RedHat
 	# but CentOS releases Xen errata not found in redhat, so we skip those too
@@ -1131,6 +1144,8 @@ foreach my $advid (sort(keys(%{$xml}))) {
 			$erratainfo{'notes'}=$rhn_errata_details->{'errata_notes'};
 			$erratainfo{'description'}=$rhn_errata_details->{'errata_description'};
 			$erratainfo{'topic'}=$rhn_errata_details->{'errata_topic'};
+		} else {
+			$skip_advid_in_rhn=1;
 		}
 		# let's replace the redhat references in the text
 		if ($os_variant eq ':O') {
@@ -1157,7 +1172,7 @@ foreach my $advid (sort(keys(%{$xml}))) {
     my (@keywords,@bugs);
     if (!defined($opt_epel_erratafile) && !defined($opt_oel_erratafile) && !defined($opt_sl_erratafile) && ($opt_get_from_rhn || $opt_redhat)) {
 	# for both CentOS and RedHat
-	if (!$centos_xen_errata) {
+	if (!$centos_xen_errata && !$skip_advid_in_rhn) {
 		set_proxy($opt_rhn_proxy);
 		@keywords=rhn_get_keywords($rhn_client,$rhn_session,$advid);
 		@bugs=rhn_get_bugs($rhn_client,$rhn_session,$advid,$opt_bugzilla_url);
@@ -1226,4 +1241,5 @@ if ($opt_get_from_rhn || ($opt_redhat && !defined($opt_epel_erratafile) && !defi
 	$rhn_client->call('auth.logout', $rhn_session);
         set_proxy($opt_proxy);
 }
+
 
