@@ -43,17 +43,16 @@ fi
 
 # create and/or cleanup the errata dir
 ERRATADIR=/tmp/centos-errata
-mkdir $ERRATADIR >/dev/null 2>&1
-rm -f $ERRATADIR/* >/dev/null 2>&1
+[ -d $ERRATADIR ] && rm -f $ERRATADIR/* || mkdir $ERRATADIR
 
 (
    cd $ERRATADIR
 
-   eval `exec /bin/date -u +'yearmon=%Y-%B day=%d'`
+   eval $(exec /bin/date -u +'yearmon=%Y-%B day=%d')
    # for the first day of the month: also consider last month
    # this only applies if the script is ran EVERY DAY
    if [ $day -lt $NBR_DIGESTS ]; then
-      yearmon=`date -u -d "$NBR_DIGESTS days ago" +%Y-%B`\ $yearmon
+      yearmon=$(date -u -d "$NBR_DIGESTS days ago" +%Y-%B)\ $yearmon
    fi
 
    # Use wget to fetch the errata data from centos.org
