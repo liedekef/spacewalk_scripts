@@ -27,6 +27,7 @@
 # 20130925 - Catch a hashref error
 #          - some better debug output
 # 20140108 - Catch more rhn errors
+# 20140304 - Support Centos Software Collections errata
 
 # Load modules
 use strict;
@@ -44,7 +45,7 @@ use Time::Local;
 #######################################################################
 
 # Version information
-my $version = "20140108";
+my $version = "20140304";
 my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13' );
 
 # Just to be sure: disable SSL certificate verification for libwww>6.0
@@ -435,7 +436,7 @@ sub parse_archivedir() {
 		
 		my $centos_xen_errata=0;
 		if ($os_release =~ /\D/) {
-                   # OS release is not an integer
+                   # OS release is not an integer, happens for xen and CSL errata
                    # so we just set it to the OS release, the package details will later point
                    # out if the advisory can be applied or not
                    $os_release = $opt_os_version;
