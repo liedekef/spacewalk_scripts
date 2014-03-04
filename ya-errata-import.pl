@@ -46,7 +46,7 @@ use Time::Local;
 
 # Version information
 my $version = "20140304";
-my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13' );
+my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13','14' );
 
 # Just to be sure: disable SSL certificate verification for libwww>6.0
 $ENV{'PERL_LWP_SSL_VERIFY_HOSTNAME'} = 0;
