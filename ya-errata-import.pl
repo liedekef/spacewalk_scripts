@@ -434,12 +434,15 @@ sub parse_archivedir() {
 		(my $os_release = $subject) =~ s/.* (\d+) .*/$1/;
 		
 		my $centos_xen_errata=0;
-		if ($os_release =~ /\D/ && $subject =~ /xen/i) {
-                   # OS release is not an integer, this happens for Xen updates
+		if ($os_release =~ /\D/) {
+                   # OS release is not an integer
                    # so we just set it to the OS release, the package details will later point
                    # out if the advisory can be applied or not
                    $os_release = $opt_os_version;
-		   $centos_xen_errata=1;
+                   if ($subject =~ /xen/i) {
+                   	# xen errata need special treatment because of different format
+		   	$centos_xen_errata=1;
+                   }
                 }
 
 		if ($os_release != $opt_os_version) {
