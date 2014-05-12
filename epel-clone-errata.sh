@@ -12,6 +12,9 @@ export LANG=C
 # Set your spacewalk server
 SPACEWALK=127.0.0.1
 
+# the EPEL version we're handling
+EPEL_VERSION=6
+
 # create and/or cleanup the errata dir
 ERRATADIR=/tmp/epel-errata
 mkdir $ERRATADIR >/dev/null 2>&1
@@ -24,7 +27,12 @@ rm -f $ERRATADIR/* >/dev/null 2>&1
    export https_proxy=
 
    # now download the errata, in this example we do it for EPEL-6-x86_64
-   wget -q --no-cache http://dl.fedoraproject.org/pub/epel/6/x86_64/repodata/updateinfo.xml.gz
+   # EPEL changed repomd format
+   # wget -q --no-cache http://dl.fedoraproject.org/pub/epel/$EPEL_VERSION/x86_64/repodata/updateinfo.xml.gz
+   repomd=`wget -q -O - --no-cache http://dl.fedoraproject.org/pub/epel/$EPEL_VERSION/x86_64/repodata/repomd.xml`
+   # we use perl minimal matching
+   updateinfo_location=`echo $repomd | perl -pe 's/.*href="(.*?updateinfo.xml.gz).*/$1/;'`
+   wget -q --no-cache -O updateinfo.xml.gz http://dl.fedoraproject.org/pub/epel/$EPEL_VERSION/$updateinfo_location
    gunzip updateinfo.xml.gz
 )
 
