@@ -24,7 +24,13 @@ rm -f $ERRATADIR/* >/dev/null 2>&1
    export https_proxy=
 
    # now download the errata, in this example we do it for EPEL-6-x86_64
-   wget -q --no-cache http://dl.fedoraproject.org/pub/epel/6/x86_64/repodata/updateinfo.xml.gz
+   # This file just contains the location of the new updateinfo.xml file
+   wget -q --no-cache http://dl.fedoraproject.org/pub/epel/6/x86_64/repodata/repomd.xml
+
+   FILELOCATION=`cat repomd.xml | gawk 'match($0,/href="(.*updateinfo.xml.gz)/,array) { print array[1]}'`
+
+   wget -q --no-cache -O updateinfo.xml.gz http://dl.fedoraproject.org/pub/epel/6/x86_64/$FILELOCATION
+
    gunzip updateinfo.xml.gz
 )
 
