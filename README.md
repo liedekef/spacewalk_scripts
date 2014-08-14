@@ -48,3 +48,13 @@ For EPEL:
   To make sure that you can push the same errata for redhat and centos channels,
   you can use the --redhat option, so the suffix will be like ":R6-32", otherwise
   it will be like ":C6-32"
+
+Dependencies:
+- on RHEL 6, the following packages are needed in order to make the proxy work
+  with RHN packages:
+
+  perl-Socket6
+  perl-IO-Socket-INET6
+  perl-Net-INET6Glue
+  perl-Crypt-SSLeay
+  
