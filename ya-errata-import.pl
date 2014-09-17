@@ -467,25 +467,27 @@ sub parse_message($$$) {
 		# something undetermined: we skip it
 		next;
 	}
-	$xml->{$advid}={};
-	$xml->{$advid}->{'synopsis'}=$synopsis;
-	$xml->{$advid}->{'release'}=1;
-	$xml->{$advid}->{'type'}=$adv_type;
-	$xml->{$advid}->{'advisory_name'}=$advid;
-	$xml->{$advid}->{'product'}="CentOS Linux";
-	$xml->{$advid}->{'topic'}="not available";
-	$xml->{$advid}->{'description'}="not available";
-	$xml->{$advid}->{'notes'}="not available";
-	$xml->{$advid}->{'solution'}="not available";
-	$xml->{$advid}->{'os_release'}=$os_release;
-	$xml->{$advid}->{'references'}="$upstream_details";
+	
+	my $adv={};
+	$adv->{'synopsis'}=$synopsis;
+	$adv->{'release'}=1;
+	$adv->{'type'}=$adv_type;
+	$adv->{'advisory_name'}=$advid;
+	$adv->{'product'}="CentOS Linux";
+	$adv->{'topic'}="not available";
+	$adv->{'description'}="not available";
+	$adv->{'notes'}="not available";
+	$adv->{'solution'}="not available";
+	$adv->{'os_release'}=$os_release;
+	$adv->{'references'}="$upstream_details";
 	# depending on the value off opt_acrhitecture, one of the following 2 will be used
-	$xml->{$advid}->{'i386_packages'}=\@i386_packages;
-	$xml->{$advid}->{'x86_64_packages'}=\@x86_64_packages;
+	$adv->{'i386_packages'}=\@i386_packages;
+	$adv->{'x86_64_packages'}=\@x86_64_packages;
 	# the next is just to be able to skip looking for xen errata in rhn, when that option is choosen
 	if ($centos_xen_errata) {
-		$xml->{$advid}->{'centos_xen_errata'}=1;
+		$adv->{'centos_xen_errata'}=1;
 	}
+	return $adv;
 }
 
 sub parse_archivedir() {
@@ -509,7 +511,8 @@ sub parse_archivedir() {
 		(my $subject = $part) =~ s/.*\<TITLE\> \[CentOS-announce\] (CE.*?)\<\/TITLE\>.*/$1/s;
 		$part =~ s/.*\<PRE\>(.*?)\<\/PRE\>.*/$1/s;
 
-		parse_message($part, $subject, $xml);
+		my $adv = parse_message($part, $subject);
+		$xml->{$adv->{'advisory_name'}}=$adv;
 	} elsif($string =~ /\<TITLE\>\s+\[CentOS\]\s+CentOS-announce\s+Digest/) {
 		debug("Multiple archive: $opt_erratadir/$file\n");
 		
@@ -517,16 +520,18 @@ sub parse_archivedir() {
 		# skip the first part, since it's general info
 		shift(@parts);
 		foreach my $part (@parts) {
+			my $subject=$part;
 			# concat the lines starting with white spaces to the previous line
-        		$part =~ s/\n\s+/ /gs;
+        		$subject =~ s/\n\s+/ /gs;
 
-			if ($part !~ /Subject: \[CentOS-announce\] CE/s) {
+			if ($subject !~ /Subject: \[CentOS-announce\] CE/s) {
 				next;
 			}
-			(my $subject = $part) =~ s/.*Subject: \[CentOS-announce\] (CE.*?)\n.*/$1/s;
+			$subject =~ s/.*Subject: \[CentOS-announce\] (CE.*?)\n.*/$1/s;
 			#print "$subject\n";
 	
-			parse_message($part, $subject, $xml);
+			my $adv = parse_message($part, $subject);
+			$xml->{$adv->{'advisory_name'}}=$adv;
 		}
 	}
   }
