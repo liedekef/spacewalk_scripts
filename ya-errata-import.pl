@@ -29,6 +29,7 @@
 # 20140108 - Catch more rhn errors
 # 20140304 - Support Centos Software Collections errata
 # 20140727 - Support Spacewalk 2.2
+# 20140918 - Better centos digest parsing
 
 # Load modules
 use strict;
@@ -46,7 +47,7 @@ use Time::Local;
 #######################################################################
 
 # Version information
-my $version = "20140304";
+my $version = "20140918";
 my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13','14','15' );
 
 # Just to be sure: disable SSL certificate verification for libwww>6.0
