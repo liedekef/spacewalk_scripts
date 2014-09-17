@@ -512,16 +512,19 @@ sub parse_archivedir() {
 		parse_message($part, $subject, $xml);
 	} elsif($string =~ /\<TITLE\>\s+\[CentOS\]\s+CentOS-announce\s+Digest/) {
 		debug("Multiple archive: $opt_erratadir/$file\n");
+		
 		my @parts = split(/Message:/,$string);
 		# skip the first part, since it's general info
 		shift(@parts);
 		foreach my $part (@parts) {
-	
+			# concat the lines starting with white spaces to the previous line
+        		$part =~ s/\n\s+/ /gs;
+
 			if ($part !~ /Subject: \[CentOS-announce\] CE/s) {
 				next;
 			}
-			(my $subject = $part) =~ s/.*Subject: \[CentOS-announce\] (CE.*?)To:.*/$1/s;
-			print "$subject\n";
+			(my $subject = $part) =~ s/.*Subject: \[CentOS-announce\] (CE.*?)\n.*/$1/s;
+			#print "$subject\n";
 	
 			parse_message($part, $subject, $xml);
 		}
