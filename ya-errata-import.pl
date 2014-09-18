@@ -465,8 +465,8 @@ sub parse_message($$) {
 	elsif (substr($advid,2,2) eq "BA") { $adv_type="Bug Fix Advisory";}
 	elsif (substr($advid,2,2) eq "EA") { $adv_type="Product Enhancement Advisory";}
 	else {
-		# something undetermined: we skip it
-		next;
+		# something undetermined
+		return;
 	}
 	
 	my $adv={};
@@ -532,6 +532,9 @@ sub parse_archivedir() {
 			#print "$subject\n";
 	
 			my $adv = parse_message($part, $subject);
+			if (!defined($adv->{'advisory_name'})) {
+				next;
+			}
 			$xml->{$adv->{'advisory_name'}}=$adv;
 		}
 	}
