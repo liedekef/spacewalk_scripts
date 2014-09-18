@@ -406,8 +406,8 @@ sub parse_redhat_errata($$) {
   return $xml;
 }
 
-sub parse_message($$$) {
-	my ($part, $subject, $xml) = @_;
+sub parse_message($$) {
+	my ($part, $subject) = @_;
 	
 	(my $upstream_details = $part) =~ s/.*Upstream details at : (.*?)\n.*/$1/s;
 	$upstream_details =~ s/.*\>(.*)\<.*/$1/;
