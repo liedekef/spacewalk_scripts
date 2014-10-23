@@ -58,3 +58,7 @@ Dependencies:
   perl-Net-INET6Glue
   perl-Crypt-SSLeay
   
+######
+Changelog:
+
+10/23/2014: Was included the feature to add in Spacewalk all erratas we can retrieve from mail list.
