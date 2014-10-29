@@ -513,6 +513,11 @@ sub parse_archivedir() {
 		$part =~ s/.*\<PRE\>(.*?)\<\/PRE\>.*/$1/s;
 
 		my $adv = parse_message($part, $subject);
+
+		if(!defined $adv) {
+			next;
+		}
+
 		$xml->{$adv->{'advisory_name'}}=$adv;
 	} elsif($string =~ /\<TITLE\>\s+\[CentOS\]\s+CentOS-announce\s+Digest/) {
 		debug("Multiple archive: $opt_erratadir/$file\n");
