@@ -415,8 +415,13 @@ sub parse_message($$) {
 	$subject =~ s/\s+/ /g;
 	(my $advid = $subject) =~ s/(.*?) .*/$1/;
 	(my $synopsis = $subject) =~ s/.*? (.*)/$1/;
-	(my $os_release = $subject) =~ s/.* (\d+) .*/$1/;
-	
+        my $os_release;
+        if ($subject  =~ /.* (\d+) .*/) {
+                $os_release=$1;
+        } elsif ($subject  =~ /.*\-(\d+) .*/) {
+                $os_release=$1;
+        }
+
 	my $centos_xen_errata=0;
 	if ($os_release =~ /\D/) {
 	   # OS release is not an integer, happens for xen and CSL errata
@@ -1086,8 +1091,7 @@ foreach my $advid (sort(keys(%{$xml}))) {
 
   # Generate OVAL ID for redhat security errata
   $ovalid = "";
-  if ($advid =~ /CESA|CLSA/ && !$centos_xen_errata) {
-    $advid =~ /..SA-(\d+):(\d+)/;
+  if (!$centos_xen_errata && $advid =~ /(CESA|CLSA)-(\d+):(\d+)/) {
     $ovalid = "oval:com.redhat.rhsa:def:$1".sprintf("%04d", $2);
     debug("Processing $advid -- OVAL ID is $ovalid\n");
   }
