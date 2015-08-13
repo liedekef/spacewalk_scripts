@@ -31,6 +31,7 @@
 # 20140727 - Support Spacewalk 2.2
 # 20140918 - Better centos digest parsing
 # 20150303 - Again more resilient centos message parsing
+# 20150813 - Support IBM-Z series s390x architecture
 
 # Load modules
 use strict;
@@ -196,7 +197,7 @@ sub usage() {
 #  print "  --sync-timeout\tAbort sync after n seconds stalled (default: 600)\n";
 #  print "  --autopush\t\tAllow server to copy packages around (NOT recommended)\n";
   print "  --publish\t\tPublish errata after creation (default: unpublished)\n";
-  print "  --architecture\tEither 'i386','x86_64' or not specified, in which case the architecture of the channel will be taken\n";
+  print "  --architecture\tEither 'i386','x86_64','s390x' or not specified, in which case the architecture of the channel will be taken\n";
   print "  --bugfix\t\tImport only Bug Fix Advisories (default: all)\n";
   print "  --security\t\tImport only Security Advisories (default: all)\n";
   print "  --enhancement\t\tImport only Enhancement Advisories (default: all)\n";
@@ -442,29 +443,38 @@ sub parse_message($$) {
 	# now get the packages per architecture
 	my $i386_packages="";
 	my $x86_64_packages="";
+	my $s390x_packages="";
+
 	if ($centos_xen_errata) {
 		($part =~ /I386/s) && (($i386_packages = $part) =~ s/.*I386\s*\n\-+\n(.*?)\n\n.*/$1/s);
 		($part =~ /X86_64/s) && (($x86_64_packages = $part) =~ s/.*X86_64\s*\n\-+\n(.*?)\n\n.*/$1/s);
 	} else {
 		($part =~ /i386:/s) && (($i386_packages = $part) =~ s/.*i386:\n(.*?)\n\n.*/$1/s);
 		($part =~ /x86_64:/s) && (($x86_64_packages = $part) =~ s/.*x86_64:\n(.*?)\n\n.*/$1/s);
+		($part =~ /s390x:/s) && (($s390x_packages = $part) =~ s/.*s390x:\n(.*?)\n\n.*/$1/s);
 	}
 	# remove first empty line
 	$i386_packages =~ s/^\n//;
 	$x86_64_packages =~ s/^\n//;
+	$s390x_packages =~ s/^\n//;
 	# remove emtpy lines
 	$i386_packages =~ s/\n\s*\n/\n/g;
 	$x86_64_packages =~ s/\n\s*\n/\n/g;
+	$s390x_packages =~ s/\n\s*\n/\n/g;
 	# remove last empty line
 	$i386_packages =~ s/\n\s*$//;
 	$x86_64_packages =~ s/\n\s*$//;
+	$s390x_packages =~ s/\n\s*$//;
 	debug("$advid i386 packages info found:\n$i386_packages\n");
 	debug("$advid x86_64 packages info found:\n$x86_64_packages\n");
+	debug("$advid s390x packages info found:\n$s390x_packages\n");
 	my @i386_packages = split(/\n/s,$i386_packages);
 	my @x86_64_packages = split(/\n/s,$x86_64_packages);
+	my @s390x_packages = split(/\n/s,$s390x_packages);
 	# remove the checksum info
 	s/\S+\s+// for @i386_packages;
 	s/\S+\s+// for @x86_64_packages;
+	s/\S+\s+// for @s390x_packages;
 	
 	my $adv_type="";
 	if (substr($advid,2,2) eq "SA") { $adv_type="Security Advisory";}
@@ -487,9 +497,10 @@ sub parse_message($$) {
 	$adv->{'solution'}="not available";
 	$adv->{'os_release'}=$os_release;
 	$adv->{'references'}="$upstream_details";
-	# depending on the value off opt_acrhitecture, one of the following 2 will be used
+	# depending on the value off opt_architecture, one of the following will be used
 	$adv->{'i386_packages'}=\@i386_packages;
 	$adv->{'x86_64_packages'}=\@x86_64_packages;
+	$adv->{'s390x_packages'}=\@s390x_packages;
 	# the next is just to be able to skip looking for xen errata in rhn, when that option is choosen
 	if ($centos_xen_errata) {
 		$adv->{'centos_xen_errata'}=1;
@@ -780,7 +791,7 @@ if (!$opt_os_version) {
 }
 
 # check the architecture
-if (defined($opt_architecture) && $opt_architecture ne "i386" && $opt_architecture ne "x86_64") {
+if (defined($opt_architecture) && $opt_architecture ne "i386" && $opt_architecture ne "x86_64" && $opt_architecture ne "s390x") {
   error("Architecture is not correctly set, please use 'i386' or 'x86_64' for values!\n");
   exit 1;
 } elsif (!defined($opt_architecture)) {
@@ -969,6 +980,9 @@ if (!defined($opt_architecture)) {
 	} elsif ($channel_architecture eq "x86_64") {
 		$opt_architecture = "x86_64";
 		info("Detected architecture '$opt_architecture' for channel '$opt_channel'\n");
+	} elsif ($channel_architecture eq "s390x") {
+		$opt_architecture = "s390x";
+		info("Detected architecture '$opt_architecture' for channel '$opt_channel'\n");
 	} else {
 		error("Unsupported architecture '$channel_architecture' for channel '$opt_channel'\n");
 		exit 1;
@@ -1100,6 +1114,8 @@ foreach my $advid (sort(keys(%{$xml}))) {
   my $adv_name=$advid.$os_variant.$opt_os_version;
   if ($opt_architecture eq "i386") {
 	$adv_name.="-32";
+  } elsif ($opt_architecture eq "s390x") {
+	$adv_name.="-s390x";
   } else {
 	$adv_name.="-64";
   }
