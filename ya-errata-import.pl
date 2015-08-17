@@ -32,6 +32,7 @@
 # 20140918 - Better centos digest parsing
 # 20150303 - Again more resilient centos message parsing
 # 20150813 - Support IBM-Z series s390x architecture
+# 20150817 - Make sure Net:ssl is used
 
 # Load modules
 use strict;
@@ -49,10 +50,11 @@ use Time::Local;
 #######################################################################
 
 # Version information
-my $version = "20150813";
+my $version = "20150817";
 my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13','14','15','16' );
 
 # Just to be sure: disable SSL certificate verification for libwww>6.0
+$ENV{PERL_NET_HTTPS_SSL_SOCKET_CLASS} = "Net::SSL";
 $ENV{'PERL_LWP_SSL_VERIFY_HOSTNAME'} = 0;
 
 # Spacewalk Version => API cheatsheet
