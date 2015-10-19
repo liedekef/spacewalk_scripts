@@ -32,9 +32,9 @@ rm -f $ERRATADIR/* >/dev/null 2>&1
    # wget -q --no-cache http://dl.fedoraproject.org/pub/epel/$EPEL_VERSION/x86_64/repodata/updateinfo.xml.gz
    repomd=`wget -q -O - --no-cache http://dl.fedoraproject.org/pub/epel/$EPEL_VERSION/$EPEL_ARCH/repodata/repomd.xml`
    # we use perl minimal matching
-   updateinfo_location=`echo $repomd | perl -pe 's/.*href="(.*?updateinfo.xml.gz).*/$1/;'`
-   wget -q --no-cache -O updateinfo.xml.gz http://dl.fedoraproject.org/pub/epel/$EPEL_VERSION/$EPEL_ARCH/$updateinfo_location
-   gunzip updateinfo.xml.gz
+   updateinfo_location=`echo $repomd | perl -pe 's/.*href="(.*?updateinfo.xml.bz2).*/$1/;'`
+   wget -q --no-cache -O updateinfo.xml.bz2 http://dl.fedoraproject.org/pub/epel/$EPEL_VERSION/$EPEL_ARCH/$updateinfo_location
+   bunzip updateinfo.xml.bz2
 )
 
 # Set usernames and passwords. You have some options here:
