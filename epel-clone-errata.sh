@@ -34,7 +34,7 @@ rm -f $ERRATADIR/* >/dev/null 2>&1
    # we use perl minimal matching
    updateinfo_location=`echo $repomd | perl -pe 's/.*href="(.*?updateinfo.xml.bz2).*/$1/;'`
    wget -q --no-cache -O updateinfo.xml.bz2 http://dl.fedoraproject.org/pub/epel/$EPEL_VERSION/$EPEL_ARCH/$updateinfo_location
-   bunzip updateinfo.xml.bz2
+   bunzip2 updateinfo.xml.bz2
 )
 
 # Set usernames and passwords. You have some options here:
