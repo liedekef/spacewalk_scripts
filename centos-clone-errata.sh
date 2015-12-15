@@ -56,7 +56,7 @@ ERRATADIR=/tmp/centos-errata
    fi
 
    # Use wget to fetch the errata data from centos.org
-   listurl=http://lists.centos.org/pipermail/centos
+   listurl=https://lists.centos.org/pipermail/centos
    { for d in $yearmon; do
 	  wget --no-cache -q -O- $listurl/$d/date.html \
 		| sed -n 's|.*"\([^"]*\)".*CentOS-announce Digest.*|'"$d/\\1|p"
@@ -64,7 +64,7 @@ ERRATADIR=/tmp/centos-errata
    } |	tail -n $NBR_DIGESTS | xargs -n1 -I{} wget -q $listurl/{}
 
    # the ye old simple way, left as an example for reference:
-   #wget --no-cache -q -O- http://lists.centos.org/pipermail/centos/$DATE/date.html| grep "CentOS-announce Digest" |tail -n 5 |cut -d"\"" -f2|xargs -n1 -I{} wget -q http://lists.centos.org/pipermail/centos/$DATE/{}
+   #wget --no-cache -q -O- https://lists.centos.org/pipermail/centos/$DATE/date.html| grep "CentOS-announce Digest" |tail -n 5 |cut -d"\"" -f2|xargs -n1 -I{} wget -q http://lists.centos.org/pipermail/centos/$DATE/{}
 )
 
 #### EDIT SECTION 2 HERE ####
