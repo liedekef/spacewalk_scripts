@@ -38,7 +38,7 @@ fullChargeErrata()
 {
   # Retrieve all years from emails sent to list, since 2004. This function will sign all erratas from digest
   # available in the mail list.
-  yearmon=$(curl http://lists.centos.org/pipermail/centos/index.html|grep date.html|cut -d"\"" -f2|cut -d"/" -f1)
+  yearmon=$(curl https://lists.centos.org/pipermail/centos/index.html|grep date.html|cut -d"\"" -f2|cut -d"/" -f1)
 
   # create and/or cleanup the errata dir
   ERRATADIR=/tmp/centos-errata
@@ -49,7 +49,7 @@ fullChargeErrata()
 
 
     # Use wget to fetch the errata data from centos.org
-    listurl=http://lists.centos.org/pipermail/centos
+    listurl=https://lists.centos.org/pipermail/centos
     { for d in $yearmon; do
 	  wget --no-cache -q -O- $listurl/$d/date.html \
 		| sed -n 's|.*"\([^"]*\)".*CentOS-announce Digest.*|'"$d/\\1|p"		| tee -a $LogFile
