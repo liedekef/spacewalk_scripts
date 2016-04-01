@@ -33,6 +33,7 @@
 # 20150303 - Again more resilient centos message parsing
 # 20150813 - Support IBM-Z series s390x architecture
 # 20150817 - Make sure Net:ssl is used
+# 20160401 - Show redhat channels found in the debug output
 
 # Load modules
 use strict;
@@ -50,7 +51,7 @@ use Time::Local;
 #######################################################################
 
 # Version information
-my $version = "20160203";
+my $version = "20160401";
 my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13','14','15','16','17' );
 
 # Just to be sure: disable SSL certificate verification for libwww>6.0
@@ -922,6 +923,12 @@ if ($opt_get_from_rhn || ($opt_redhat && !defined($opt_epel_erratafile) && !defi
       exit 3;
    }
    info("Authentication on $opt_rhn_server successful\n");
+   if ($opt_debug) {
+      my $channels = $rhn_client->call('channel.listSoftwareChannels', $rhn_session);
+      foreach my $channel (@$channels) {
+         print "RHN channel found: ".$channel->{"channel_label"}."\n";
+      }
+   }
    set_proxy($opt_proxy);
 }
 
