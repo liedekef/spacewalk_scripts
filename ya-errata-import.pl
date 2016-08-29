@@ -414,6 +414,8 @@ sub parse_redhat_errata($$) {
 sub parse_message($$) {
 	my ($part, $subject) = @_;
 	
+	debug("Parsing errata $subject\n");
+	
 	(my $upstream_details = $part) =~ s/.*Upstream details at : (.*?)\n.*/$1/s;
 	$upstream_details =~ s/.*\>(.*)\<.*/$1/;
 	$subject =~ s/\n//gs;
