@@ -422,7 +422,7 @@ sub parse_message($$) {
 	$subject =~ s/\s+/ /g;
 	(my $advid = $subject) =~ s/(.*?) .*/$1/;
 	(my $synopsis = $subject) =~ s/.*? (.*)/$1/;
-        my $os_release;
+        my $os_release="";
         if ($subject  =~ /.* (\d+) .*/) {
                 $os_release=$1;
         } elsif ($subject  =~ /.*\-(\d+) .*/) {
