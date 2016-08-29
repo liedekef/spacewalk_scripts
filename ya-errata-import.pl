@@ -422,7 +422,7 @@ sub parse_message($$) {
 	$subject =~ s/\s+/ /g;
 	(my $advid = $subject) =~ s/(.*?) .*/$1/;
 	(my $synopsis = $subject) =~ s/.*? (.*)/$1/;
-        my $os_release="";
+        my $os_release = undef;
         if ($subject  =~ /.* (\d+) .*/) {
                 $os_release=$1;
         } elsif ($subject  =~ /.*\-(\d+) .*/) {
@@ -430,7 +430,7 @@ sub parse_message($$) {
         }
 
 	my $centos_xen_errata=0;
-	if ($os_release =~ /\D/) {
+	if (!defined($os_release) || $os_release =~ /\D/) {
 	   # OS release is not an integer, happens for xen and CSL errata
 	   # so we just set it to the OS release, the package details will later point
 	   # out if the advisory can be applied or not
