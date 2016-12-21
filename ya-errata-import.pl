@@ -34,6 +34,7 @@
 # 20150813 - Support IBM-Z series s390x architecture
 # 20150817 - Make sure Net:ssl is used
 # 20160401 - Show redhat channels found in the debug output
+# 20161221 - Support Spacewalk API 2.6
 
 # Load modules
 use strict;
@@ -52,7 +53,7 @@ use Time::Local;
 
 # Version information
 my $version = "20160401";
-my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13','14','15','16','17' );
+my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13','14','15','16','17','19' );
 
 # Just to be sure: disable SSL certificate verification for libwww>6.0
 $ENV{PERL_NET_HTTPS_SSL_SOCKET_CLASS} = "Net::SSL";
@@ -72,6 +73,7 @@ $ENV{'PERL_LWP_SSL_VERIFY_HOSTNAME'} = 0;
 # 1.7 => 11.1  == TESTED
 # 1.9 => 12 == TESTED
 # 2.0 => 13 == TESTED
+# 2.6 => 19 == TESTED
 
 # Variable declaration
 $| = 1;
