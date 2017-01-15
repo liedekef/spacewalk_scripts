@@ -1110,7 +1110,7 @@ foreach my $advid (sort(keys(%{$xml}))) {
   # Fedora-epel
   # Fedora
   # CVE
-  unless($advid =~ /^CE|^RH|^SL|^EL|^FEDORA-EPEL|^FEDORA|CVE/) { debug("Skipping $advid\n"); next; }
+  unless($advid =~ /^CE|^RH|^SL|^EL|^FEDORA|CVE/) { debug("Skipping $advid\n"); next; }
 
   if (defined($xml->{$advid}->{'centos_xen_errata'})) {
      $centos_xen_errata=1;
