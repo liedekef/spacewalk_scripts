@@ -275,6 +275,25 @@ sub parse_updatexml($) {
   foreach my $errata (@{$updatexml->{'update'}}) {
         my $advid = $errata->{'id'};
         my $errata_type;
+
+        # It's possible that the errata naming convention excludes the expected SA|BA|EA keywords
+        # Which means the earlier pre-filter for optimization may not have worked
+        # So double check that we intend to process this errata type
+        if ($opt_security || $opt_bugfix || $opt_enhancement) {
+          if ( ($errata->{'type'} eq "security") && (not($opt_security)) ) {
+            debug("Skipping $advid. Security Errata not selected.\n");
+            next;
+           }
+           if ( ($errata->{'type'} eq "bugfix") && (not($opt_bugfix)) ) {
+             debug("Skipping $advid. Bugfix Errata not selected.\n");
+             next;
+           }
+           if ( ($errata->{'type'} eq "enhancement") && (not($opt_enhancement)) ) {
+             debug("Skipping $advid. Enhancement Errata not selected.\n");
+             next;
+           }
+        }
+
 	if ($errata->{'type'} eq "bugfix") {
 		$errata_type="Bug Fix Advisory";
 	} elsif ($errata->{'type'} eq "security") {
@@ -1089,8 +1108,9 @@ foreach my $advid (sort(keys(%{$xml}))) {
   # SL: scientific linux
   # EL: oracle enterprise linux
   # Fedora-epel
+  # Fedora
   # CVE
-  unless($advid =~ /^CE|^RH|^SL|^EL|^FEDORA-EPEL|CVE/) { debug("Skipping $advid\n"); next; }
+  unless($advid =~ /^CE|^RH|^SL|^EL|^FEDORA-EPEL|^FEDORA|CVE/) { debug("Skipping $advid\n"); next; }
 
   if (defined($xml->{$advid}->{'centos_xen_errata'})) {
      $centos_xen_errata=1;
