@@ -325,11 +325,18 @@ sub parse_updatexml($) {
                 if (ref($pkg_info) ne "HASH") {
                         $pkg_info=$errata->{'pkglist'}->{'collection'}->{'package'};
                 }
-		if ($pkg_info->{'arch'} ne 'src' && $pkg_info->{'filename'} !~ /src\.rpm$|debuginfo/) {
-			my $pkg_filename = $pkg_info->{'filename'};
-			push (@packages,$pkg_filename);
-			debug("Errata $advid has package $pkg_filename\n");
-		}
+		# we don't care about src or debug rpm
+                if ($pkg_info->{'arch'} ne 'src' && $pkg_info->{'filename'} !~ /src\.rpm$|debuginfo/) {
+                        my $pkg_filename = $pkg_info->{'filename'};
+                        # noarch rpm are for all architectures
+                        # for the rest the arch in the errata should be equal to the arch desired
+                        # unless for x86_64, there you can also have i686 rpms
+                        if ($pkg_info->{'arch'} eq 'noarch' || $pkg_info->{'arch'} eq ${opt_architecture} ||
+                            (${opt_architecture} eq "x86_64" && $pkg_info->{'arch'} eq "i686")) {
+                                push (@packages,$pkg_filename);
+                                debug("Errata $advid has package $pkg_filename\n");
+                        }
+                }
 	}
         if (!@packages) {
 		debug("Skipping $advid, no packages for the corresponding arch\n");
