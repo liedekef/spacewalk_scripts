@@ -480,10 +480,10 @@ sub parse_message($$) {
 	my $s390x_packages="";
 
 	if ($centos_xen_errata) {
-		($part =~ /I386/s) && (($i386_packages = $part) =~ s/.*I386\s*\n\-+\n(.*?)\n\n.*/$1/s);
+		($part =~ /I.86/s) && (($i386_packages = $part) =~ s/.*I.86\s*\n\-+\n(.*?)\n\n.*/$1/s);
 		($part =~ /X86_64/s) && (($x86_64_packages = $part) =~ s/.*X86_64\s*\n\-+\n(.*?)\n\n.*/$1/s);
 	} else {
-		($part =~ /i386:/s) && (($i386_packages = $part) =~ s/.*i386:\n(.*?)\n\n.*/$1/s);
+		($part =~ /i.86:/s) && (($i386_packages = $part) =~ s/.*i.86:\n(.*?)\n\n.*/$1/s);
 		($part =~ /x86_64:/s) && (($x86_64_packages = $part) =~ s/.*x86_64:\n(.*?)\n\n.*/$1/s);
 		($part =~ /s390x:/s) && (($s390x_packages = $part) =~ s/.*s390x:\n(.*?)\n\n.*/$1/s);
 	}
@@ -570,6 +570,20 @@ sub parse_archivedir() {
 		}
 
 		$xml->{$adv->{'advisory_name'}}=$adv;
+        } elsif($string =~ /\<TITLE\>\s+\[CentOS-CR-announce\]\s+CE/) {
+                debug("Single archive: $opt_erratadir/$file\n");
+                my $part = $string;
+
+                (my $subject = $part) =~ s/.*\<TITLE\> \[CentOS-CR-announce\] (CE.*?)\<\/TITLE\>.*/$1/s;
+                $part =~ s/.*\<PRE\>(.*?)\<\/PRE\>.*/$1/s;
+
+                my $adv = parse_message($part, $subject);
+
+                if(!defined $adv) {
+                        next;
+                }
+
+                $xml->{$adv->{'advisory_name'}}=$adv;
 	} elsif($string =~ /\<TITLE\>\s+\[CentOS\]\s+CentOS-announce\s+Digest/) {
 		debug("Multiple archive: $opt_erratadir/$file\n");
 		
