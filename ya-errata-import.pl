@@ -54,7 +54,7 @@ use Time::Local;
 #######################################################################
 
 # Version information
-my $version = "20170930";
+my $version = "20180627";
 my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13','14','15','16','17','19','20','21' );
 
 # Just to be sure: disable SSL certificate verification for libwww>6.0
