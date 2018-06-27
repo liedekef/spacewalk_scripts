@@ -36,6 +36,7 @@
 # 20160401 - Show redhat channels found in the debug output
 # 20161221 - Support Spacewalk API 2.6
 # 20170930 - Support Spacewalk API 2.7
+# 20180627 - Support Spacewalk API 2.8
 
 # Load modules
 use strict;
@@ -54,7 +55,7 @@ use Time::Local;
 
 # Version information
 my $version = "20170930";
-my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13','14','15','16','17','19','20' );
+my @supportedapi = ( '10.9','10.11','11.00','11.1','12','13','14','15','16','17','19','20','21' );
 
 # Just to be sure: disable SSL certificate verification for libwww>6.0
 $ENV{PERL_NET_HTTPS_SSL_SOCKET_CLASS} = "Net::SSL";
